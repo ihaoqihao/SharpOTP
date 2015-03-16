@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -448,28 +447,6 @@ namespace SharpOTP
             }
             #endregion
 
-            #region Override Methods
-            /// <summary>
-            /// to string
-            /// </summary>
-            /// <returns></returns>
-            public override string ToString()
-            {
-                var sb = new System.Text.StringBuilder();
-
-                sb.Append(string.Join(Environment.NewLine, this._dicOffered.Select(c => string.Concat(c.Key, "/offered:", c.Value.ToString())).ToArray()));
-                sb.Append(Environment.NewLine);
-                sb.Append(string.Join(Environment.NewLine, this._dicProcesswait.Select(c => string.Concat(c.Key, "/wait:", c.Value.ToString())).ToArray()));
-                sb.Append(Environment.NewLine);
-                sb.Append(string.Join(Environment.NewLine, this._dicProcessed.Select(c => string.Concat(c.Key, "/processed:", c.Value.ToString())).ToArray()));
-                sb.Append(Environment.NewLine);
-                sb.Append(string.Join(Environment.NewLine, this._dicProcessError.Select(c => string.Concat(c.Key, "/process_error:", c.Value.ToString())).ToArray()));
-                sb.Append(Environment.NewLine);
-
-                return sb.ToString();
-            }
-            #endregion
-
             #region CallTime
             /// <summary>
             /// call time
@@ -506,18 +483,6 @@ namespace SharpOTP
                     this.Min = min;
                     this.Count = count;
                     this.Total = total;
-                }
-
-                /// <summary>
-                /// tostring
-                /// </summary>
-                /// <returns></returns>
-                public override string ToString()
-                {
-                    return string.Concat("max:", this.Max.ToString(),
-                        " min:", this.Min.ToString(),
-                        " count:", this.Count.ToString(),
-                        " total:", this.Total.ToString());
                 }
             }
             #endregion

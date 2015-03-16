@@ -32,7 +32,7 @@ namespace Tests
     public sealed class TestServer
     {
         static private readonly SharpOTP.Actor _server =
-            SharpOTP.GenServer.Start<TestServer>("abc", 1, true);
+            SharpOTP.GenServer.Start<TestServer>();
 
         public async Task<string> HandleCall(string message)
         {
