@@ -5,6 +5,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpOTP", "SharpOTP\SharpO
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Tests", "Tests\Tests.csproj", "{2C550DD1-84B3-4DF0-8B07-06D9D74A72FD}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SharpOTP.Remote", "SharpOTP.Remote\SharpOTP.Remote.csproj", "{C79F49BD-1276-4ED4-8713-77DE45630BAF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -19,6 +21,10 @@ Global
 		{2C550DD1-84B3-4DF0-8B07-06D9D74A72FD}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2C550DD1-84B3-4DF0-8B07-06D9D74A72FD}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2C550DD1-84B3-4DF0-8B07-06D9D74A72FD}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C79F49BD-1276-4ED4-8713-77DE45630BAF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C79F49BD-1276-4ED4-8713-77DE45630BAF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C79F49BD-1276-4ED4-8713-77DE45630BAF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C79F49BD-1276-4ED4-8713-77DE45630BAF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

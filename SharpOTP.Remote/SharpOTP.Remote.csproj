@@ -4,16 +4,15 @@
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{2C550DD1-84B3-4DF0-8B07-06D9D74A72FD}</ProjectGuid>
-    <OutputType>Exe</OutputType>
+    <ProjectGuid>{C79F49BD-1276-4ED4-8713-77DE45630BAF}</ProjectGuid>
+    <OutputType>Library</OutputType>
     <AppDesignerFolder>Properties</AppDesignerFolder>
-    <RootNamespace>Tests</RootNamespace>
-    <AssemblyName>Tests</AssemblyName>
+    <RootNamespace>SharpOTP.Remote</RootNamespace>
+    <AssemblyName>SharpOTP.Remote</AssemblyName>
     <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugSymbols>true</DebugSymbols>
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
@@ -21,27 +20,53 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
+    <DocumentationFile>
+    </DocumentationFile>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <PlatformTarget>AnyCPU</PlatformTarget>
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-    <Prefer32Bit>false</Prefer32Bit>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="RabbitMQ.Client">
+      <HintPath>..\packages\RabbitMQ.Client.3.5.6\lib\net40\RabbitMQ.Client.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
-    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Configuration" />
+    <Reference Include="Thrift">
+      <HintPath>..\packages\thrift.0.9.0.3\lib\net40\Thrift.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Program.cs" />
+    <Compile Include="Actor.cs" />
+    <Compile Include="Config\Cluster.cs" />
+    <Compile Include="Config\Node.cs" />
+    <Compile Include="Config\OTPSection.cs">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="Config\RabbitMQ.cs" />
+    <Compile Include="Config\NodeCollection.cs" />
+    <Compile Include="FNV1ConsistentHashPolicy.cs" />
+    <Compile Include="FNV1_32.cs" />
+    <Compile Include="IMessageDispatchPolicy.cs" />
+    <Compile Include="HashModPolicy.cs" />
+    <Compile Include="Consumer.cs" />
+    <Compile Include="Ketama.cs" />
+    <Compile Include="Messaging\Actions.cs" />
+    <Compile Include="Messaging\Boolean.cs" />
+    <Compile Include="Messaging\Message.cs" />
+    <Compile Include="Messaging\RemotingException.cs" />
+    <Compile Include="NetworkBitConverter.cs" />
+    <Compile Include="Publisher.cs" />
+    <Compile Include="PollingPolicy.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="App.config" />
+    <Compile Include="KetamaConsistentHashPolicy.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\SharpOTP\SharpOTP.csproj">
@@ -49,6 +74,15 @@
       <Name>SharpOTP</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup>
+    <None Include="otp.config">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+      <SubType>Designer</SubType>
+    </None>
+    <None Include="otp_message.thrift" />
+    <None Include="packages.config" />
+  </ItemGroup>
+  <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

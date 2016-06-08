@@ -12,6 +12,11 @@ namespace SharpOTP
     {
         #region Members
         /// <summary>
+        /// actor name
+        /// </summary>
+        public readonly string Name;
+
+        /// <summary>
         /// block
         /// </summary>
         private readonly ActionBlock<Message> _block = null;
@@ -20,56 +25,49 @@ namespace SharpOTP
         /// </summary>
         private readonly dynamic _server;
         /// <summary>
-        /// actor name
+        /// performance counter
         /// </summary>
-        public readonly string Name;
-        #endregion
-
-        #region Event
-        /// <summary>
-        /// message offered event
-        /// </summary>
-        public event Action<Actor> Offered;
-        /// <summary>
-        /// message processed
-        /// </summary>
-        public event Action<Actor, DateTime> Processed;
-        /// <summary>
-        /// message process error
-        /// </summary>
-        public event Action<Actor, Exception> ProcessError;
+        private readonly Counter _counter = null;
         #endregion
 
         #region Constructors
         /// <summary>
         /// new
         /// </summary>
-        /// <param name="server"></param>
         /// <param name="name"></param>
+        /// <param name="server"></param>
         /// <param name="maxDegreeOfParallelism"></param>
-        internal Actor(object server, string name, int maxDegreeOfParallelism)
+        /// <param name="enableMonitoring"></param>
+        internal Actor(string name, object server, int maxDegreeOfParallelism, bool enableMonitoring)
         {
+            if (string.IsNullOrEmpty(name)) throw new ArgumentNullException("name");
+            if (server == null) throw new ArgumentNullException("server");
+
+            this.Name = name;
             this._server = server;
-            this.Name = name ?? server.GetType().ToString();
+            if (enableMonitoring) this._counter = new Counter(name);
 
             this._block = new ActionBlock<Message>(message =>
             {
-                var startTime = DateTimeSlim.UtcNow;
+                Stopwatch sw = null;
+                if (this._counter != null) sw = Stopwatch.StartNew();
 
-                Task task = null;
-                try { task = this._server.HandleCall(message.Argument) as Task; }
-                catch (Exception ex) { task = Task.Factory.StartNew(() => { throw ex; }); }
-                if (task == null) task = Task.Factory.StartNew(() => { throw new ArgumentNullException("HandleCall.Result"); });
+                Task t = null;
+                try { t = this._server.HandleCall(message.Argument) as Task; }
+                catch (Exception ex) { t = FromException(ex); }
+                if (t == null) t = FromException(new InvalidOperationException("actor.HandleCall"));
 
-                message.Callback(task);
-                return task.ContinueWith(c =>
+                message.Callback(t);
+                return t.ContinueWith(c =>
                 {
-                    if (this.Processed != null) this.Processed(this, startTime);
                     if (c.IsFaulted)
                     {
-                        if (this.ProcessError != null) this.ProcessError(this, c.Exception.InnerException);
+                        if (this._counter != null) this._counter.Fail();
                         Trace.TraceError(c.Exception.ToString());
+                        return;
                     }
+
+                    if (this._counter != null) this._counter.Complete((int)sw.ElapsedMilliseconds);
                 });
             }, new ExecutionDataflowBlockOptions { MaxDegreeOfParallelism = maxDegreeOfParallelism });
         }
@@ -92,7 +90,7 @@ namespace SharpOTP
         {
             if (this._block.Post(new Message(argument)))
             {
-                if (this.Offered != null) this.Offered(this);
+                if (this._counter != null) this._counter.Post();
                 return true;
             }
             return false;
@@ -108,7 +106,7 @@ namespace SharpOTP
             var source = new TaskCompletionSource<TResult>();
             if (this._block.Post(new Message(argument, source)))
             {
-                if (this.Offered != null) this.Offered(this);
+                if (this._counter != null) this._counter.Post();
                 return source.Task;
             }
             return null;
@@ -131,6 +129,18 @@ namespace SharpOTP
         internal void Complete()
         {
             this._block.Complete();
+        }
+        #endregion
+
+        #region Private Methods
+        /// <summary>
+        /// from exception
+        /// </summary>
+        /// <param name="ex"></param>
+        /// <returns></returns>
+        static private Task FromException(Exception ex)
+        {
+            return Task.Run(() => { throw ex; });
         }
         #endregion
     }

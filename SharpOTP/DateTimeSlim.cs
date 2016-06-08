@@ -3,7 +3,7 @@
 namespace SharpOTP
 {
     /// <summary>
-    /// date time slim, 精确到毫秒
+    /// date time slim
     /// </summary>
     static public class DateTimeSlim
     {
@@ -13,7 +13,7 @@ namespace SharpOTP
         /// <summary>
         /// Gets the current utc time in an optimized fashion.
         /// </summary>
-        static public DateTime UtcNow
+        public static DateTime UtcNow
         {
             get
             {

@@ -5,12 +5,12 @@ using System.Runtime.InteropServices;
 // 有关程序集的常规信息通过以下
 // 特性集控制。更改这些特性值可修改
 // 与程序集关联的信息。
-[assembly: AssemblyTitle("SharpOTP")]
+[assembly: AssemblyTitle("SharpOTP.Remote")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("")]
-[assembly: AssemblyProduct("SharpOTP")]
-[assembly: AssemblyCopyright("Copyright ©WiFiSong 2013")]
+[assembly: AssemblyProduct("SharpOTP.Remote")]
+[assembly: AssemblyCopyright("Copyright ©WiFiSong 2015")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
@@ -20,7 +20,7 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(false)]
 
 // 如果此项目向 COM 公开，则下列 GUID 用于类型库的 ID
-[assembly: Guid("4aa6e031-ba56-4245-b3de-d20dd4b138fe")]
+[assembly: Guid("0aa9eddb-f4f0-4730-bb16-60be7b2769c8")]
 
 // 程序集的版本信息由下面四个值组成:
 //

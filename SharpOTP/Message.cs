@@ -8,6 +8,9 @@ namespace SharpOTP
     /// </summary>
     internal sealed class Message
     {
+        /// <summary>
+        /// task source.
+        /// </summary>
         private readonly dynamic _taskSource = null;
         /// <summary>
         /// 参数

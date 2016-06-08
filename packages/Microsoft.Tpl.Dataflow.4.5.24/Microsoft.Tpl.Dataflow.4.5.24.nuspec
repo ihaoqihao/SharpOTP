@@ -2,7 +2,7 @@
 <package xmlns="http://schemas.microsoft.com/packaging/2013/01/nuspec.xsd">
   <metadata minClientVersion="2.5">
     <id>Microsoft.Tpl.Dataflow</id>
-    <version>4.5.14</version>
+    <version>4.5.24</version>
     <title>Microsoft TPL Dataflow</title>
     <authors>Microsoft</authors>
     <owners>Microsoft</owners>
@@ -14,12 +14,12 @@
 
 Supported Platforms:
 - .NET Framework 4.5
-- .NET for Windows Store apps
+- Windows 8
+- Windows Phone 8.1
+- Windows Phone Silverlight 8
 - Portable Class Libraries</description>
     <summary>Task Parallel Library (TPL) Dataflow provides actor based building blocks for concurrent applications.</summary>
-    <releaseNotes />
     <copyright>Copyright © Microsoft Corporation</copyright>
-    <language />
     <tags>BCL TPL Task Parallel Dataflow Microsoft TDF Actor Async</tags>
   </metadata>
 </package>
