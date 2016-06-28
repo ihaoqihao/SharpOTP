@@ -24,12 +24,13 @@ exception RemotingException
 struct Message
 {
 	2:Actions Action;						//action
-	3:string Code;							//message code
+	3:string MethodName;					//method name
 	4:binary Payload;						//message body
 	5:RemotingException Exception;			//exception
 	6:string To;							//to queue name.
 	7:string ReplyTo;						//reply to queue name.
 	8:i64 CorrentionId;						//reply to corrention Id
+    9:list<binary> ListPayload;             //payload list
 }
 
 /**
