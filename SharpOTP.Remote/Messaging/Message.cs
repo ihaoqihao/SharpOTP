@@ -20,12 +20,13 @@ namespace SharpOTP.Remote.Messaging
   public partial class Message : TBase
   {
     private Actions _Action;
-    private string _Code;
+    private string _MethodName;
     private byte[] _Payload;
     private RemotingException _Exception;
     private string _To;
     private string _ReplyTo;
     private long _CorrentionId;
+    private List<byte[]> _ListPayload;
 
     public Actions Action
     {
@@ -40,16 +41,16 @@ namespace SharpOTP.Remote.Messaging
       }
     }
 
-    public string Code
+    public string MethodName
     {
       get
       {
-        return _Code;
+        return _MethodName;
       }
       set
       {
-        __isset.Code = true;
-        this._Code = value;
+        __isset.MethodName = true;
+        this._MethodName = value;
       }
     }
 
@@ -118,17 +119,31 @@ namespace SharpOTP.Remote.Messaging
       }
     }
 
+    public List<byte[]> ListPayload
+    {
+      get
+      {
+        return _ListPayload;
+      }
+      set
+      {
+        __isset.ListPayload = true;
+        this._ListPayload = value;
+      }
+    }
+
 
     public Isset __isset;
     [Serializable]
     public struct Isset {
       public bool Action;
-      public bool Code;
+      public bool MethodName;
       public bool Payload;
       public bool Exception;
       public bool To;
       public bool ReplyTo;
       public bool CorrentionId;
+      public bool ListPayload;
     }
 
     public Message() {
@@ -155,7 +170,7 @@ namespace SharpOTP.Remote.Messaging
             break;
           case 3:
             if (field.Type == TType.String) {
-              Code = iprot.ReadString();
+              MethodName = iprot.ReadString();
             } else { 
               TProtocolUtil.Skip(iprot, field.Type);
             }
@@ -196,6 +211,23 @@ namespace SharpOTP.Remote.Messaging
               TProtocolUtil.Skip(iprot, field.Type);
             }
             break;
+          case 9:
+            if (field.Type == TType.List) {
+              {
+                ListPayload = new List<byte[]>();
+                TList _list0 = iprot.ReadListBegin();
+                for( int _i1 = 0; _i1 < _list0.Count; ++_i1)
+                {
+                  byte[] _elem2 = null;
+                  _elem2 = iprot.ReadBinary();
+                  ListPayload.Add(_elem2);
+                }
+                iprot.ReadListEnd();
+              }
+            } else { 
+              TProtocolUtil.Skip(iprot, field.Type);
+            }
+            break;
           default: 
             TProtocolUtil.Skip(iprot, field.Type);
             break;
@@ -217,12 +249,12 @@ namespace SharpOTP.Remote.Messaging
         oprot.WriteI32((int)Action);
         oprot.WriteFieldEnd();
       }
-      if (Code != null && __isset.Code) {
-        field.Name = "Code";
+      if (MethodName != null && __isset.MethodName) {
+        field.Name = "MethodName";
         field.Type = TType.String;
         field.ID = 3;
         oprot.WriteFieldBegin(field);
-        oprot.WriteString(Code);
+        oprot.WriteString(MethodName);
         oprot.WriteFieldEnd();
       }
       if (Payload != null && __isset.Payload) {
@@ -265,6 +297,21 @@ namespace SharpOTP.Remote.Messaging
         oprot.WriteI64(CorrentionId);
         oprot.WriteFieldEnd();
       }
+      if (ListPayload != null && __isset.ListPayload) {
+        field.Name = "ListPayload";
+        field.Type = TType.List;
+        field.ID = 9;
+        oprot.WriteFieldBegin(field);
+        {
+          oprot.WriteListBegin(new TList(TType.String, ListPayload.Count));
+          foreach (byte[] _iter3 in ListPayload)
+          {
+            oprot.WriteBinary(_iter3);
+          }
+          oprot.WriteListEnd();
+        }
+        oprot.WriteFieldEnd();
+      }
       oprot.WriteFieldStop();
       oprot.WriteStructEnd();
     }
@@ -273,8 +320,8 @@ namespace SharpOTP.Remote.Messaging
       StringBuilder sb = new StringBuilder("Message(");
       sb.Append("Action: ");
       sb.Append(Action);
-      sb.Append(",Code: ");
-      sb.Append(Code);
+      sb.Append(",MethodName: ");
+      sb.Append(MethodName);
       sb.Append(",Payload: ");
       sb.Append(Payload);
       sb.Append(",Exception: ");
@@ -285,6 +332,8 @@ namespace SharpOTP.Remote.Messaging
       sb.Append(ReplyTo);
       sb.Append(",CorrentionId: ");
       sb.Append(CorrentionId);
+      sb.Append(",ListPayload: ");
+      sb.Append(ListPayload);
       sb.Append(")");
       return sb.ToString();
     }
