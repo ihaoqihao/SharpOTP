@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Configuration;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -161,27 +160,27 @@ namespace SharpOTP.Remote
         /// register
         /// </summary>
         /// <typeparam name="TRequest"></typeparam>
-        /// <param name="code"></param>
+        /// <param name="methodName"></param>
         /// <param name="actor"></param>
         /// <returns></returns>
-        public bool Register<TRequest>(string code, SharpOTP.Actor actor)
+        public bool Register<TRequest>(string methodName, SharpOTP.Actor actor)
             where TRequest : Thrift.Protocol.TBase, new()
         {
-            return this._processor.Register<TRequest>(code, actor);
+            return this._processor.Register<TRequest>(methodName, actor);
         }
         /// <summary>
         /// register
         /// </summary>
         /// <typeparam name="TRequest"></typeparam>
         /// <typeparam name="TResult"></typeparam>
-        /// <param name="code"></param>
+        /// <param name="methodName"></param>
         /// <param name="actor"></param>
         /// <returns></returns>
-        public bool Register<TRequest, TResult>(string code, SharpOTP.Actor actor)
+        public bool Register<TRequest, TResult>(string methodName, SharpOTP.Actor actor)
             where TRequest : Thrift.Protocol.TBase, new()
             where TResult : Thrift.Protocol.TBase, new()
         {
-            return this._processor.Register<TRequest, TResult>(code, actor);
+            return this._processor.Register<TRequest, TResult>(methodName, actor);
         }
 
         /// <summary>
@@ -189,77 +188,104 @@ namespace SharpOTP.Remote
         /// </summary>
         /// <typeparam name="TRequest"></typeparam>
         /// <param name="key"></param>
-        /// <param name="code"></param>
+        /// <param name="methodName"></param>
         /// <param name="request"></param>
         /// <returns></returns>
-        public Task Call<TRequest>(string key, string code, TRequest request)
+        public Task Call<TRequest>(string key, string methodName, TRequest request)
             where TRequest : Thrift.Protocol.TBase, new()
         {
-            return this.CallTo<TRequest>(this._dispatchPolicy.GetNode(key), code, request);
+            return this.CallTo<TRequest>(this._dispatchPolicy.GetNode(key), methodName, request);
         }
         /// <summary>
         /// call
         /// </summary>
         /// <typeparam name="TRequest"></typeparam>
-        /// <param name="code"></param>
+        /// <param name="methodName"></param>
         /// <param name="request"></param>
         /// <returns></returns>
-        public Task Call<TRequest>(string code, TRequest request)
+        public Task Call<TRequest>(string methodName, TRequest request)
             where TRequest : Thrift.Protocol.TBase, new()
         {
             var nodes = this._dispatchPolicy.GetAllNodes();
             if (nodes == null || nodes.Length == 0) return Task.FromResult(true);
-            return Task.WhenAll(nodes.Select(n => this.CallTo<TRequest>(n, code, request)).ToArray());
+            return Task.WhenAll(nodes.Select(n => this.CallTo<TRequest>(n, methodName, request)).ToArray());
         }
         /// <summary>
         /// call to
         /// </summary>
         /// <typeparam name="TRequest"></typeparam>
         /// <param name="toNode"></param>
-        /// <param name="code"></param>
+        /// <param name="methodName"></param>
         /// <param name="request"></param>
         /// <returns></returns>
         /// <exception cref="ArgumentNullException">toNode is null.</exception>
-        /// <exception cref="ArgumentNullException">code is null.</exception>
-        public Task CallTo<TRequest>(string toNode, string code, TRequest request)
+        /// <exception cref="ArgumentNullException">method name is null.</exception>
+        public Task CallTo<TRequest>(string toNode, string methodName, TRequest request)
             where TRequest : Thrift.Protocol.TBase, new()
         {
             if (toNode == null) throw new ArgumentNullException("toNode");
-            if (code == null) throw new ArgumentNullException("code");
+            if (methodName == null) throw new ArgumentNullException("methodName");
 
-            //根据key计算本次请求该到哪个节点
             if (this.CurrNode == toNode)//本地节点，直接本地调用
-                return this._processor.Get(code).ContinueWith(t =>
-                {
-                    if (t.IsFaulted) throw t.Exception.InnerException;
-                    if (t.Result == null) throw new InvalidOperationException("illegal code, the code unregister actor.");
-                    t.Result.Call(request);
-                });
+                return this._processor.Call(methodName, request);
 
             //远程调用
             return this._publisher.Publish(new Messaging.Message
             {
                 To = toNode,
                 Action = Messaging.Actions.Request,
-                Code = code,
+                MethodName = methodName,
                 Payload = Thrift.Util.ThriftMarshaller.Serialize(request)
             });
         }
 
         /// <summary>
+        /// batch call
+        /// </summary>
+        /// <typeparam name="TRequest"></typeparam>
+        /// <param name="methodName"></param>
+        /// <param name="keyFactory"></param>
+        /// <param name="arrRequest"></param>
+        /// <returns></returns>
+        public Task Call<TRequest>(string methodName, Func<TRequest, string> keyFactory, TRequest[] arrRequest)
+            where TRequest : Thrift.Protocol.TBase, new()
+        {
+            if (methodName == null) throw new ArgumentNullException("methodName");
+            if (keyFactory == null) throw new ArgumentNullException("keyFactory");
+            if (arrRequest == null || arrRequest.Length == 0) throw new ArgumentNullException("arrRequest is null or empty.");
+
+            return Task.WhenAll(arrRequest.ToLookup(r => this.CalcNode(keyFactory(r)))
+                .Select(c =>
+                {
+                    //本地调用
+                    if (c.Key == this.CurrNode)
+                        return this._processor.Call(methodName, c.ToArray());
+
+                    //远程调用
+                    return this._publisher.Publish(new Messaging.Message
+                    {
+                        To = c.Key,
+                        Action = Messaging.Actions.Request,
+                        MethodName = methodName,
+                        ListPayload = c.Select(Thrift.Util.ThriftMarshaller.Serialize).ToList()
+                    });
+                }).ToArray());
+        }
+
+        /// <summary>
         /// call
         /// </summary>
         /// <typeparam name="TRequest"></typeparam>
         /// <typeparam name="TResult"></typeparam>
         /// <param name="key"></param>
-        /// <param name="code"></param>
+        /// <param name="methodName"></param>
         /// <param name="request"></param>
         /// <returns></returns>
-        public Task<TResult> Call<TRequest, TResult>(string key, string code, TRequest request)
+        public Task<TResult> Call<TRequest, TResult>(string key, string methodName, TRequest request)
             where TRequest : Thrift.Protocol.TBase, new()
             where TResult : Thrift.Protocol.TBase, new()
         {
-            return this.CallTo<TRequest, TResult>(this._dispatchPolicy.GetNode(key), code, request, this.RemoteTimeout);
+            return this.CallTo<TRequest, TResult>(this._dispatchPolicy.GetNode(key), methodName, request, this.RemoteTimeout);
         }
         /// <summary>
         /// call
@@ -267,29 +293,30 @@ namespace SharpOTP.Remote
         /// <typeparam name="TRequest"></typeparam>
         /// <typeparam name="TResult"></typeparam>
         /// <param name="key"></param>
-        /// <param name="code"></param>
+        /// <param name="methodName"></param>
         /// <param name="request"></param>
         /// <param name="timeout"></param>
         /// <returns></returns>
-        public Task<TResult> Call<TRequest, TResult>(string key, string code, TRequest request, int timeout)
+        public Task<TResult> Call<TRequest, TResult>(string key, string methodName, TRequest request, int timeout)
             where TRequest : Thrift.Protocol.TBase, new()
             where TResult : Thrift.Protocol.TBase, new()
         {
-            return this.CallTo<TRequest, TResult>(this._dispatchPolicy.GetNode(key), code, request, timeout);
+            return this.CallTo<TRequest, TResult>(this._dispatchPolicy.GetNode(key), methodName, request, timeout);
         }
+
         /// <summary>
         /// call
         /// </summary>
         /// <typeparam name="TRequest"></typeparam>
         /// <typeparam name="TResult"></typeparam>
-        /// <param name="code"></param>
+        /// <param name="methodName"></param>
         /// <param name="request"></param>
         /// <returns></returns>
-        public Task<TResult[]> Call<TRequest, TResult>(string code, TRequest request)
+        public Task<TResult[]> Call<TRequest, TResult>(string methodName, TRequest request)
             where TRequest : Thrift.Protocol.TBase, new()
             where TResult : Thrift.Protocol.TBase, new()
         {
-            return this.Call<TRequest, TResult>(code, request, this.RemoteTimeout);
+            return this.Call<TRequest, TResult>(methodName, request, this.RemoteTimeout);
         }
         /// <summary>
         /// call
@@ -297,31 +324,32 @@ namespace SharpOTP.Remote
         /// <typeparam name="TRequest"></typeparam>
         /// <typeparam name="TResult"></typeparam>
         /// <param name="key"></param>
-        /// <param name="code"></param>
+        /// <param name="methodName"></param>
         /// <param name="request"></param>
         /// <returns></returns>
-        public Task<TResult[]> Call<TRequest, TResult>(string code, TRequest request, int timeout)
+        public Task<TResult[]> Call<TRequest, TResult>(string methodName, TRequest request, int timeout)
             where TRequest : Thrift.Protocol.TBase, new()
             where TResult : Thrift.Protocol.TBase, new()
         {
             var nodes = this._dispatchPolicy.GetAllNodes();
             if (nodes == null || nodes.Length == 0) return Task.FromResult(new TResult[0]);
-            return Task.WhenAll(nodes.Select(n => this.CallTo<TRequest, TResult>(n, code, request, timeout)).ToArray());
+            return Task.WhenAll(nodes.Select(n => this.CallTo<TRequest, TResult>(n, methodName, request, timeout)).ToArray());
         }
+
         /// <summary>
         /// call to
         /// </summary>
         /// <typeparam name="TRequest"></typeparam>
         /// <typeparam name="TResult"></typeparam>
         /// <param name="toNode"></param>
-        /// <param name="code"></param>
+        /// <param name="methodName"></param>
         /// <param name="request"></param>
         /// <returns></returns>
-        public Task<TResult> CallTo<TRequest, TResult>(string toNode, string code, TRequest request)
+        public Task<TResult> CallTo<TRequest, TResult>(string toNode, string methodName, TRequest request)
             where TRequest : Thrift.Protocol.TBase, new()
             where TResult : Thrift.Protocol.TBase, new()
         {
-            return this.CallTo<TRequest, TResult>(toNode, code, request, this.RemoteTimeout);
+            return this.CallTo<TRequest, TResult>(toNode, methodName, request, this.RemoteTimeout);
         }
         /// <summary>
         /// call to
@@ -329,48 +357,27 @@ namespace SharpOTP.Remote
         /// <typeparam name="TRequest"></typeparam>
         /// <typeparam name="TResult"></typeparam>
         /// <param name="toNode"></param>
-        /// <param name="code"></param>
+        /// <param name="methodName"></param>
         /// <param name="request"></param>
         /// <param name="timeout"></param>
         /// <returns></returns>
-        public Task<TResult> CallTo<TRequest, TResult>(string toNode, string code, TRequest request, int timeout)
+        public Task<TResult> CallTo<TRequest, TResult>(string toNode, string methodName, TRequest request, int timeout)
             where TRequest : Thrift.Protocol.TBase, new()
             where TResult : Thrift.Protocol.TBase, new()
         {
             if (toNode == null) throw new ArgumentNullException("toNode");
-            if (code == null) throw new ArgumentNullException("code");
+            if (methodName == null) throw new ArgumentNullException("methodName");
 
-            var source = new TaskCompletionSource<TResult>();
             if (this.CurrNode == toNode)//本地节点，直接本地调用
-            {
-                this._processor.Get(code).ContinueWith(t =>
-                {
-                    if (t.IsFaulted)
-                    {
-                        source.TrySetException(t.Exception.InnerException);
-                        return;
-                    }
-                    if (t.Result == null)
-                    {
-                        source.TrySetException(new InvalidOperationException("unknow code"));
-                        return;
-                    }
-                    t.Result.Call<TResult>(request).ContinueWith(t2 =>
-                    {
-                        if (t2.IsFaulted)
-                        {
-                            source.TrySetException(t2.Exception.InnerException);
-                            return;
-                        }
-                        source.TrySetResult(t2.Result);
-                    });
-                });
-            }
+                return this._processor.Call<TRequest, TResult>(methodName, request);
             else
             {
+                var source = new TaskCompletionSource<TResult>();
                 var id = Interlocked.Increment(ref this.CORRENTIONID);
+
                 //注册消息回复回调
-                this._tbReply.Register<TResult>(toNode, id, timeout, result => source.TrySetResult(result),
+                this._tbReply.Register<TResult>(toNode, id, timeout,
+                    result => source.TrySetResult(result),
                     ex => source.TrySetException(ex));
 
                 //远程调用
@@ -378,7 +385,7 @@ namespace SharpOTP.Remote
                 {
                     To = toNode,
                     Action = Messaging.Actions.Request,
-                    Code = code,
+                    MethodName = methodName,
                     ReplyTo = this.CurrNode,
                     CorrentionId = id,
                     Payload = Thrift.Util.ThriftMarshaller.Serialize(request)
@@ -387,9 +394,106 @@ namespace SharpOTP.Remote
                     this._tbReply.Remove(id);
                     source.TrySetException(t.Exception.InnerException);
                 }, TaskContinuationOptions.OnlyOnFaulted);
+
+                return source.Task;
+            }
+        }
+
+        /// <summary>
+        /// batch call
+        /// </summary>
+        /// <typeparam name="TRequest"></typeparam>
+        /// <typeparam name="TResult"></typeparam>
+        /// <param name="methodName"></param>
+        /// <param name="keyFactory"></param>
+        /// <param name="arrRequest"></param>
+        /// <param name="timeout"></param>
+        /// <returns></returns>
+        public Task<TResult[]> Call<TRequest, TResult>(string methodName,
+            Func<TRequest, string> keyFactory, TRequest[] arrRequest, int timeout)
+            where TRequest : Thrift.Protocol.TBase, new()
+            where TResult : Thrift.Protocol.TBase, new()
+        {
+            if (methodName == null) throw new ArgumentNullException("methodName");
+            if (keyFactory == null) throw new ArgumentNullException("keyFactory");
+            if (arrRequest == null || arrRequest.Length == 0) throw new ArgumentNullException("arrRequest is null or empty.");
+
+            var dicRequest = new Dictionary<string, List<Tuple<int, TRequest>>>();
+            for (int i = 0, l = arrRequest.Length; i < l; i++)
+            {
+                var request = arrRequest[i];
+                var node = this.CalcNode(keyFactory(request));
+
+                List<Tuple<int, TRequest>> list = null;
+                if (!dicRequest.TryGetValue(node, out list))
+                    dicRequest[node] = list = new List<Tuple<int, TRequest>>();
+
+                list.Add(Tuple.Create(i, request));
             }
 
-            return source.Task;
+            var arrTasks = dicRequest.Select(c =>
+            {
+                var childRequests = c.Value;
+                //本地调用
+                if (c.Key == this.CurrNode)
+                {
+                    return this._processor.Call<TRequest, TResult>(methodName,
+                        childRequests.Select(p => p.Item2).ToArray())
+                        .ContinueWith(t =>
+                        {
+                            if (t.IsFaulted) throw t.Exception.InnerException;
+
+                            var returnResult = new Dictionary<int, TResult>(t.Result.Length);
+                            for (int i = 0, l = t.Result.Length; i < l; i++)
+                                returnResult[childRequests[i].Item1] = t.Result[i];
+
+                            return returnResult;
+                        });
+                }
+
+                var source = new TaskCompletionSource<Dictionary<int, TResult>>();
+                var id = Interlocked.Increment(ref this.CORRENTIONID);
+
+                //注册消息回复回调
+                this._tbReply.Register<TResult>(c.Key, id, timeout,
+                    (TResult[] arrResult) =>
+                    {
+                        var returnResult = new Dictionary<int, TResult>(arrResult.Length);
+                        for (int i = 0, l = arrResult.Length; i < l; i++)
+                            returnResult[childRequests[i].Item1] = arrResult[i];
+
+                        source.TrySetResult(returnResult);
+                    },
+                    ex => source.TrySetException(ex));
+
+                //远程调用
+                this._publisher.Publish(new Messaging.Message
+                {
+                    To = c.Key,
+                    Action = Messaging.Actions.Request,
+                    MethodName = methodName,
+                    ReplyTo = this.CurrNode,
+                    CorrentionId = id,
+                    ListPayload = childRequests.Select(p => Thrift.Util.ThriftMarshaller.Serialize(p.Item2)).ToList()
+                }).ContinueWith(t =>
+                {
+                    this._tbReply.Remove(id);
+                    source.TrySetException(t.Exception.InnerException);
+                }, TaskContinuationOptions.OnlyOnFaulted);
+
+                return source.Task;
+            }).ToArray();
+
+            return Task.WhenAll(arrTasks).ContinueWith(t =>
+            {
+                if (t.IsFaulted) throw t.Exception.InnerException;
+
+                var dic = new Dictionary<int, TResult>();
+                foreach (var childResult in t.Result)
+                    foreach (var p in childResult) dic[p.Key] = p.Value;
+
+                return Enumerable.Range(0, arrRequest.Length).Select(i => dic[i]).ToArray();
+            });
         }
         #endregion
 
@@ -420,7 +524,7 @@ namespace SharpOTP.Remote
             /// </summary>
             private readonly Publisher _publisher = null;
             /// <summary>
-            /// key:code
+            /// key:method name
             /// </summary>
             private readonly Dictionary<string, Context> _dicCtx =
                 new Dictionary<string, Context>();
@@ -438,8 +542,7 @@ namespace SharpOTP.Remote
                 if (publisher == null) throw new ArgumentNullException("publisher");
 
                 this._publisher = publisher;
-                this._server = GenServer.Start(this,
-                    string.Concat(actorName, ".Processor"), 1, enableMonitoring);
+                this._server = GenServer.Start(this, string.Concat(actorName, ".Processor"), 1, enableMonitoring);
             }
             #endregion
 
@@ -451,7 +554,7 @@ namespace SharpOTP.Remote
             /// <returns></returns>
             public async Task HandleCall(Context context)
             {
-                this._dicCtx[context.Code] = context;
+                this._dicCtx[context.MethodName] = context;
             }
             /// <summary>
             /// on message
@@ -461,34 +564,30 @@ namespace SharpOTP.Remote
             public async Task HandleCall(Messaging.Message message)
             {
                 Context ctx = null;
-                if (this._dicCtx.TryGetValue(message.Code, out ctx))
+                if (this._dicCtx.TryGetValue(message.MethodName, out ctx))
                 {
                     ctx.OnMessage(message);
                     return;
                 }
 
-                if (string.IsNullOrEmpty(message.ReplyTo)) return;
                 this._publisher.Publish(new Messaging.Message
                 {
                     Action = Messaging.Actions.Response,
                     To = message.ReplyTo,
                     CorrentionId = message.CorrentionId,
-                    Code = message.Code,
-                    Exception = new Messaging.RemotingException
-                    {
-                        Error = "unknow code"
-                    }
+                    MethodName = message.MethodName,
+                    Exception = new Messaging.RemotingException { Error = "invalid method." }
                 });
             }
             /// <summary>
-            /// get actor by code
+            /// get <see cref="Context"/> by method name.
             /// </summary>
             /// <param name="message"></param>
             /// <returns></returns>
-            public async Task<SharpOTP.Actor> HandleCall(GetActorMessage message)
+            public async Task<Context> HandleCall(GetContextMessage message)
             {
                 Context ctx = null;
-                if (this._dicCtx.TryGetValue(message.Code, out ctx)) return ctx.Actor;
+                if (this._dicCtx.TryGetValue(message.MethodName, out ctx)) return ctx;
                 return null;
             }
             #endregion
@@ -498,33 +597,33 @@ namespace SharpOTP.Remote
             /// register
             /// </summary>
             /// <typeparam name="TRequest"></typeparam>
-            /// <param name="code"></param>
+            /// <param name="methodName"></param>
             /// <param name="actor"></param>
             /// <returns></returns>
-            public bool Register<TRequest>(string code, SharpOTP.Actor actor)
+            public bool Register<TRequest>(string methodName, SharpOTP.Actor actor)
                 where TRequest : Thrift.Protocol.TBase, new()
             {
-                if (code == null) throw new ArgumentNullException("code");
+                if (methodName == null) throw new ArgumentNullException("methodName");
                 if (actor == null) throw new ArgumentNullException("actor");
 
-                return this._server.Call(new Context<TRequest>(code, actor));
+                return this._server.Call(new Context<TRequest>(methodName, actor));
             }
             /// <summary>
             /// register
             /// </summary>
             /// <typeparam name="TRequest"></typeparam>
             /// <typeparam name="TResult"></typeparam>
-            /// <param name="code"></param>
+            /// <param name="methodName"></param>
             /// <param name="actor"></param>
             /// <returns></returns>
-            public bool Register<TRequest, TResult>(string code, SharpOTP.Actor actor)
+            public bool Register<TRequest, TResult>(string methodName, SharpOTP.Actor actor)
                 where TRequest : Thrift.Protocol.TBase, new()
                 where TResult : Thrift.Protocol.TBase, new()
             {
-                if (code == null) throw new ArgumentNullException("code");
+                if (methodName == null) throw new ArgumentNullException("methodName");
                 if (actor == null) throw new ArgumentNullException("actor");
 
-                return this._server.Call(new Context<TRequest, TResult>(code, actor, this._publisher));
+                return this._server.Call(new Context<TRequest, TResult>(methodName, actor, this._publisher));
             }
             /// <summary>
             /// message
@@ -535,13 +634,72 @@ namespace SharpOTP.Remote
                 this._server.Call(message);
             }
             /// <summary>
-            /// get actor by code
+            /// call
             /// </summary>
-            /// <param name="code"></param>
+            /// <typeparam name="TRequest"></typeparam>
+            /// <param name="methodName"></param>
+            /// <param name="request"></param>
             /// <returns></returns>
-            public Task<SharpOTP.Actor> Get(string code)
+            public Task Call<TRequest>(string methodName, TRequest request)
             {
-                return this._server.Call<SharpOTP.Actor>(new GetActorMessage(code));
+                return this._server.Call<Context>(
+                    new GetContextMessage(methodName))
+                    .ContinueWith(t =>
+                    {
+                        if (t.Result == null) throw new ApplicationException("invalid method.");
+                        t.Result.Call<TRequest>(request);
+                    });
+            }
+            /// <summary>
+            /// call
+            /// </summary>
+            /// <typeparam name="TRequest"></typeparam>
+            /// <param name="methodName"></param>
+            /// <param name="arrRequest"></param>
+            /// <returns></returns>
+            public Task Call<TRequest>(string methodName, TRequest[] arrRequest)
+            {
+                if (arrRequest == null || arrRequest.Length == 0)
+                    throw new ArgumentNullException("arrRequest is null or empty.");
+
+                return this._server.Call<Context>(
+                    new GetContextMessage(methodName))
+                    .ContinueWith(t =>
+                    {
+                        if (t.Result == null) throw new ApplicationException("invalid method.");
+                        foreach (var r in arrRequest) t.Result.Call(r);
+                    });
+            }
+            /// <summary>
+            /// call
+            /// </summary>
+            /// <typeparam name="TRequest"></typeparam>
+            /// <typeparam name="TResult"></typeparam>
+            /// <param name="methodName"></param>
+            /// <param name="request"></param>
+            /// <returns></returns>
+            public async Task<TResult> Call<TRequest, TResult>(string methodName, TRequest request)
+            {
+                var ctx = await this._server.Call<Context>(new GetContextMessage(methodName));
+                if (ctx == null) throw new ApplicationException("invalid method.");
+                return await ctx.Call<TRequest, TResult>(request);
+            }
+            /// <summary>
+            /// call
+            /// </summary>
+            /// <typeparam name="TRequest"></typeparam>
+            /// <typeparam name="TResult"></typeparam>
+            /// <param name="methodName"></param>
+            /// <param name="arrRequest"></param>
+            /// <returns></returns>
+            public async Task<TResult[]> Call<TRequest, TResult>(string methodName, TRequest[] arrRequest)
+            {
+                if (arrRequest == null || arrRequest.Length == 0)
+                    throw new ArgumentNullException("arrRequest is null or empty.");
+
+                var ctx = await this._server.Call<Context>(new GetContextMessage(methodName));
+                if (ctx == null) throw new ApplicationException("invalid method.");
+                return await Task.WhenAll(arrRequest.Select(r => ctx.Call<TRequest, TResult>(r)).ToArray());
             }
             #endregion
 
@@ -553,27 +711,27 @@ namespace SharpOTP.Remote
             {
                 #region Public Members
                 /// <summary>
-                /// code
+                /// method name
                 /// </summary>
-                public readonly string Code;
+                public readonly string MethodName;
                 /// <summary>
                 /// actor
                 /// </summary>
-                public readonly SharpOTP.Actor Actor;
+                private readonly SharpOTP.Actor Actor;
                 #endregion
 
                 #region Constructors
                 /// <summary>
                 /// new
                 /// </summary>
-                /// <param name="code"></param>
+                /// <param name="methodName"></param>
                 /// <param name="actor"></param>
-                public Context(string code, SharpOTP.Actor actor)
+                public Context(string methodName, SharpOTP.Actor actor)
                 {
-                    if (code == null) throw new ArgumentNullException("code");
+                    if (methodName == null) throw new ArgumentNullException("methodName");
                     if (actor == null) throw new ArgumentNullException("actor");
 
-                    this.Code = code;
+                    this.MethodName = methodName;
                     this.Actor = actor;
                 }
                 #endregion
@@ -619,10 +777,10 @@ namespace SharpOTP.Remote
                 /// <summary>
                 /// new
                 /// </summary>
-                /// <param name="code"></param>
+                /// <param name="methodName"></param>
                 /// <param name="actor"></param>
-                public Context(string code, SharpOTP.Actor actor)
-                    : base(code, actor)
+                public Context(string methodName, SharpOTP.Actor actor)
+                    : base(methodName, actor)
                 {
                 }
                 #endregion
@@ -634,14 +792,14 @@ namespace SharpOTP.Remote
                 /// <param name="message"></param>
                 public override void OnMessage(Messaging.Message message)
                 {
-                    TRequest request;
-                    try { request = Thrift.Util.ThriftMarshaller.Deserialize<TRequest>(message.Payload); }
-                    catch (Exception ex)
+                    if (message.__isset.Payload)
                     {
-                        Trace.TraceError(ex.ToString());
+                        base.Call(Thrift.Util.ThriftMarshaller.Deserialize<TRequest>(message.Payload));
                         return;
                     }
-                    this.Actor.Call(request);
+
+                    message.ListPayload.ForEach(payload =>
+                        base.Call(Thrift.Util.ThriftMarshaller.Deserialize<TRequest>(payload)));
                 }
                 #endregion
             }
@@ -663,11 +821,11 @@ namespace SharpOTP.Remote
                 /// <summary>
                 /// new
                 /// </summary>
-                /// <param name="code"></param>
+                /// <param name="methodName"></param>
                 /// <param name="actor"></param>
                 /// <param name="publisher"></param>
-                public Context(string code, SharpOTP.Actor actor, Publisher publisher)
-                    : base(code, actor)
+                public Context(string methodName, SharpOTP.Actor actor, Publisher publisher)
+                    : base(methodName, actor)
                 {
                     if (publisher == null) throw new ArgumentNullException("publisher");
                     this._publisher = publisher;
@@ -681,35 +839,84 @@ namespace SharpOTP.Remote
                 /// <param name="message"></param>
                 public override void OnMessage(Messaging.Message message)
                 {
-                    TRequest request;
-                    try { request = Thrift.Util.ThriftMarshaller.Deserialize<TRequest>(message.Payload); }
-                    catch (Exception ex)
+                    if (message.__isset.Payload)
                     {
-                        Trace.TraceError(ex.ToString());
+                        base.Call<TRequest, TResult>(
+                            Thrift.Util.ThriftMarshaller.Deserialize<TRequest>(message.Payload))
+                            .ContinueWith(t =>
+                            {
+                                if (t.IsFaulted)
+                                {
+                                    this.Reply(message, t.Exception);
+                                    return;
+                                }
+                                this.Reply(message, t.Result);
+                            });
                         return;
                     }
 
-                    this.Actor.Call<TResult>(request).ContinueWith(t =>
+                    Task.WhenAll(message.ListPayload.Select(payload =>
+                        base.Call<TRequest, TResult>(Thrift.Util.ThriftMarshaller.Deserialize<TRequest>(payload))).ToArray())
+                        .ContinueWith(t =>
+                        {
+                            if (t.IsFaulted)
+                            {
+                                this.Reply(message, t.Exception);
+                                return;
+                            }
+                            this.Reply(message, t.Result);
+                        });
+                }
+                #endregion
+
+                #region Private Methods
+                /// <summary>
+                /// reply
+                /// </summary>
+                /// <param name="message"></param>
+                /// <param name="result"></param>
+                private void Reply(Messaging.Message message, TResult result)
+                {
+                    this._publisher.Publish(new Messaging.Message
                     {
-                        if (string.IsNullOrEmpty(message.ReplyTo)) return;
-
-                        var replyMessage = new Messaging.Message
-                        {
-                            To = message.ReplyTo,
-                            Code = message.Code,
-                            Action = Messaging.Actions.Response,
-                            CorrentionId = message.CorrentionId,
-                        };
-                        if (t.IsFaulted)
-                        {
-                            var ex = t.Exception.InnerException;
-                            if (ex is Messaging.RemotingException) replyMessage.Exception = ex as Messaging.RemotingException;
-                            else replyMessage.Exception = new Messaging.RemotingException { Error = ex.ToString() };
-                        }
-                        else replyMessage.Payload = Thrift.Util.ThriftMarshaller.Serialize(t.Result);
-
-                        //send the reply message
-                        this._publisher.Publish(replyMessage);
+                        To = message.ReplyTo,
+                        MethodName = message.MethodName,
+                        Action = Messaging.Actions.Response,
+                        CorrentionId = message.CorrentionId,
+                        Payload = Thrift.Util.ThriftMarshaller.Serialize(result)
+                    });
+                }
+                /// <summary>
+                /// reply
+                /// </summary>
+                /// <param name="message"></param>
+                /// <param name="arrResult"></param>
+                private void Reply(Messaging.Message message, TResult[] arrResult)
+                {
+                    this._publisher.Publish(new Messaging.Message
+                    {
+                        To = message.ReplyTo,
+                        MethodName = message.MethodName,
+                        Action = Messaging.Actions.Response,
+                        CorrentionId = message.CorrentionId,
+                        ListPayload = arrResult.Select(Thrift.Util.ThriftMarshaller.Serialize).ToList()
+                    });
+                }
+                /// <summary>
+                /// reply
+                /// </summary>
+                /// <param name="message"></param>
+                /// <param name="ex"></param>
+                private void Reply(Messaging.Message message, Exception ex)
+                {
+                    var remoteEx = ex as Messaging.RemotingException;
+                    this._publisher.Publish(new Messaging.Message
+                    {
+                        To = message.ReplyTo,
+                        MethodName = message.MethodName,
+                        Action = Messaging.Actions.Response,
+                        CorrentionId = message.CorrentionId,
+                        Exception = remoteEx ?? new Messaging.RemotingException { Error = ex.ToString() }
                     });
                 }
                 #endregion
@@ -718,23 +925,23 @@ namespace SharpOTP.Remote
 
             #region Actor Message
             /// <summary>
-            /// get actor message
+            /// get <see cref="Context"/> message
             /// </summary>
-            public sealed class GetActorMessage
+            public sealed class GetContextMessage
             {
                 /// <summary>
-                /// code
+                /// method name
                 /// </summary>
-                public readonly string Code;
+                public readonly string MethodName;
 
                 /// <summary>
                 /// new
                 /// </summary>
-                /// <param name="code"></param>
-                public GetActorMessage(string code)
+                /// <param name="methodName"></param>
+                public GetContextMessage(string methodName)
                 {
-                    if (code == null) throw new ArgumentNullException(code);
-                    this.Code = code;
+                    if (methodName == null) throw new ArgumentNullException("methodName");
+                    this.MethodName = methodName;
                 }
             }
             #endregion
@@ -769,8 +976,7 @@ namespace SharpOTP.Remote
             /// <param name="enableMonitoring"></param>
             public ReplyTable(string actorName, bool enableMonitoring)
             {
-                this._server = GenServer.Start(this,
-                    string.Concat(actorName, ".reply"), 1, enableMonitoring);
+                this._server = GenServer.Start(this, string.Concat(actorName, ".reply"), 1, enableMonitoring);
                 this._timer = new Timer(_ => this._server.Call(new TimeMessage()), null, 0, 1000);
             }
             #endregion
@@ -815,11 +1021,9 @@ namespace SharpOTP.Remote
             public async Task HandleCall(TimeMessage context)
             {
                 var dtNow = DateTimeSlim.UtcNow;
-                var arr = this._dicCtx.Values
-                    .Where(c => dtNow.Subtract(c.CurrTime).TotalMilliseconds >= c.Timeout)
-                    .ToArray();
-
+                var arr = this._dicCtx.Values.Where(c => dtNow.Subtract(c.CurrTime).TotalMilliseconds >= c.Timeout).ToArray();
                 if (arr.Length == 0) return;
+
                 foreach (var ctx in arr)
                 {
                     this._dicCtx.Remove(ctx.CorrentionId);
@@ -843,6 +1047,21 @@ namespace SharpOTP.Remote
                 where TResult : Thrift.Protocol.TBase, new()
             {
                 this._server.Call(new Context<TResult>(to, correntionId, timeout, callback, error));
+            }
+            /// <summary>
+            /// register
+            /// </summary>
+            /// <typeparam name="TResult"></typeparam>
+            /// <param name="to"></param>
+            /// <param name="correntionId"></param>
+            /// <param name="timeout"></param>
+            /// <param name="callback"></param>
+            /// <param name="error"></param>
+            public void Register<TResult>(string to, long correntionId, int timeout,
+               Action<TResult[]> callback, Action<Exception> error)
+               where TResult : Thrift.Protocol.TBase, new()
+            {
+                this._server.Call(new BatchContext<TResult>(to, correntionId, timeout, callback, error));
             }
             /// <summary>
             /// on message
@@ -944,7 +1163,8 @@ namespace SharpOTP.Remote
                 /// <param name="callback"></param>
                 /// <param name="error"></param>
                 public Context(string to, long correntionId, int timeout,
-                    Action<TResult> callback, Action<Exception> error)
+                    Action<TResult> callback,
+                    Action<Exception> error)
                     : base(to, correntionId, timeout, error)
                 {
                     if (callback == null) throw new ArgumentNullException("callback");
@@ -964,9 +1184,56 @@ namespace SharpOTP.Remote
                         this.Error(message.Exception);
                         return;
                     }
+                    this.Callback(Thrift.Util.ThriftMarshaller.Deserialize<TResult>(message.Payload));
+                }
+                #endregion
+            }
+            /// <summary>
+            /// batch context
+            /// </summary>
+            /// <typeparam name="TResult"></typeparam>
+            public sealed class BatchContext<TResult> : Context
+               where TResult : Thrift.Protocol.TBase, new()
+            {
+                #region Public Members
+                /// <summary>
+                /// callback
+                /// </summary>
+                public readonly Action<TResult[]> Callback;
+                #endregion
 
-                    try { this.Callback(Thrift.Util.ThriftMarshaller.Deserialize<TResult>(message.Payload)); }
-                    catch (Exception ex) { this.Error(ex); }
+                #region Constructors
+                /// <summary>
+                /// new
+                /// </summary>
+                /// <param name="to"></param>
+                /// <param name="correntionId"></param>
+                /// <param name="timeout"></param>
+                /// <param name="callback"></param>
+                /// <param name="error"></param>
+                public BatchContext(string to, long correntionId, int timeout,
+                    Action<TResult[]> callback,
+                    Action<Exception> error)
+                    : base(to, correntionId, timeout, error)
+                {
+                    if (callback == null) throw new ArgumentNullException("callback");
+                    this.Callback = callback;
+                }
+                #endregion
+
+                #region API
+                /// <summary>
+                /// on message
+                /// </summary>
+                /// <param name="message"></param>
+                public override void OnMessage(Messaging.Message message)
+                {
+                    if (message.Exception != null)
+                    {
+                        this.Error(message.Exception);
+                        return;
+                    }
+                    this.Callback(message.ListPayload.Select(Thrift.Util.ThriftMarshaller.Deserialize<TResult>).ToArray());
                 }
                 #endregion
             }
