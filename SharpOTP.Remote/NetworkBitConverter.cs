@@ -153,47 +153,5 @@ namespace SharpOTP.Remote
                 return (uint)i2 | ((long)i1 << 32);
             }
         }
-
-        ///// <summary>
-        ///// 返回由网络字节数组中指定位置的两个字节转换来的 16 位有符号整数。
-        ///// </summary>
-        ///// <param name="value"></param>
-        ///// <param name="startIndex"></param>
-        ///// <returns></returns>
-        //static public short ToInt16(byte[] value, int startIndex)
-        //{
-        //    return (short)(((value[startIndex] & 0xff) << 8) |
-        //                   ((value[startIndex + 1] & 0xff)));
-        //}
-        ///// <summary>
-        ///// 返回由网络字节数组中指定位置的四个字节转换来的 32 位有符号整数。
-        ///// </summary>
-        ///// <param name="value"></param>
-        ///// <param name="startIndex"></param>
-        ///// <returns></returns>
-        //static public int ToInt32(byte[] value, int startIndex)
-        //{
-        //    return (int)(((value[startIndex] & 0xff) << 24) |
-        //                 ((value[startIndex + 1] & 0xff) << 16) |
-        //                 ((value[startIndex + 2] & 0xff) << 8) |
-        //                 ((value[startIndex + 3] & 0xff)));
-        //}
-        ///// <summary>
-        ///// 返回由网络字节数组中指定位置的八个字节转换来的 64 位有符号整数。
-        ///// </summary>
-        ///// <param name="value"></param>
-        ///// <param name="startIndex"></param>
-        ///// <returns></returns>
-        //static public long ToInt64(byte[] value, int startIndex)
-        //{
-        //    return (long)(((long)(value[startIndex] & 0xff) << 56) |
-        //                  ((long)(value[startIndex + 1] & 0xff) << 48) |
-        //                  ((long)(value[startIndex + 2] & 0xff) << 40) |
-        //                  ((long)(value[startIndex + 3] & 0xff) << 32) |
-        //                  ((long)(value[startIndex + 4] & 0xff) << 24) |
-        //                  ((long)(value[startIndex + 5] & 0xff) << 16) |
-        //                  ((long)(value[startIndex + 6] & 0xff) << 8) |
-        //                  ((long)(value[startIndex + 7] & 0xff)));
-        //}
     }
 }
