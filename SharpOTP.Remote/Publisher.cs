@@ -1,9 +1,9 @@
-﻿using System;
+﻿using RabbitMQ.Client;
+using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using RabbitMQ.Client;
 using Thrift.Util;
 
 namespace SharpOTP.Remote
