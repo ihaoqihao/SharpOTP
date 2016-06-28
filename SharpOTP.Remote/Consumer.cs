@@ -1,7 +1,7 @@
-﻿using System;
+﻿using RabbitMQ.Client;
+using System;
 using System.Diagnostics;
 using System.Threading.Tasks;
-using RabbitMQ.Client;
 using Thrift.Util;
 
 namespace SharpOTP.Remote
@@ -25,7 +25,10 @@ namespace SharpOTP.Remote
         /// rabbitMQ connection
         /// </summary>
         private IConnection _connection = null;
-
+        /// <summary>
+        /// actor
+        /// </summary>
+        private readonly SharpOTP.Actor _server = null;
         /// <summary>
         /// true is disposed
         /// </summary>
@@ -74,8 +77,69 @@ namespace SharpOTP.Remote
                 VirtualHost = config.VHost
             };
 
-            //async start consume
-            Task.Run(() => this.StartConsume());
+            this._server = GenServer.Start(this);
+            this._server.Call(new ListenMessage());
+        }
+        #endregion
+
+        #region Actor Callback
+        /// <summary>
+        /// listen message
+        /// </summary>
+        /// <param name="message"></param>
+        /// <returns></returns>
+        public async Task HandleCall(ListenMessage message)
+        {
+            if (this._disposed) return;
+
+            if (base.Model == null || base.Model.IsClosed)
+            {
+                if (this._connection == null || !this._connection.IsOpen)
+                {
+                    try { this._connection = this._factory.CreateConnection(); }
+                    catch (Exception ex)
+                    {
+                        Trace.TraceError(ex.ToString());
+                        Task.Delay(new Random(BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0)).Next(500, 2000))
+                            .ContinueWith(_ => this._server.Call(new ListenMessage()));
+                        return;
+                    }
+                }
+
+                try { base.Model = this._connection.CreateModel(); }
+                catch (Exception ex)
+                {
+                    Trace.TraceError(ex.ToString());
+                    Task.Delay(new Random(BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0)).Next(500, 2000))
+                        .ContinueWith(_ => this._server.Call(new ListenMessage()));
+                    return;
+                }
+            }
+
+            try
+            {
+                base.Model.QueueDeclare(this.QueueName, false, true, true, null);
+                base.Model.QueueBind(this.QueueName, this.Exchange, this.QueueName);
+                base.Model.BasicConsume(this.QueueName, true, this);
+            }
+            catch (Exception ex)
+            {
+                Trace.TraceError(ex.ToString());
+                Task.Delay(new Random(BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0)).Next(500, 2000))
+                    .ContinueWith(_ => this._server.Call(new ListenMessage()));
+                return;
+            }
+        }
+        /// <summary>
+        /// dispose
+        /// </summary>
+        /// <param name="message"></param>
+        /// <returns></returns>
+        public async Task<bool> HandleCall(DisposeMessage message)
+        {
+            this._disposed = true;
+            if (this._connection != null) this._connection.Dispose();
+            return true;
         }
         #endregion
 
@@ -98,11 +162,8 @@ namespace SharpOTP.Remote
             IBasicProperties properties,
             byte[] body)
         {
-            Messaging.Message message = null;
-            try { message = ThriftMarshaller.Deserialize<Messaging.Message>(body); }
-            catch { return; }
-
-            this._callback(message);
+            if (body == null || body.Length == 0) return;
+            this._callback(ThriftMarshaller.Deserialize<Messaging.Message>(body));
         }
         /// <summary>
         /// on channel shutdown 
@@ -111,55 +172,9 @@ namespace SharpOTP.Remote
         /// <param name="reason"></param>
         public override void HandleModelShutdown(object model, ShutdownEventArgs reason)
         {
-            if (this._disposed) return;
-            Task.Delay(new Random().Next(100, 500)).ContinueWith(_ =>
-                this.StartConsume());
-        }
-        #endregion
-
-        #region Private Methods
-        /// <summary>
-        /// start consume
-        /// </summary>
-        public void StartConsume()
-        {
-            lock (this)
-            {
-                if (base.Model == null || base.Model.IsClosed)
-                {
-                    if (this._connection == null || !this._connection.IsOpen)
-                    {
-                        try { this._connection = this._factory.CreateConnection(); }
-                        catch (Exception ex)
-                        {
-                            Trace.TraceError(ex.ToString());
-                            Task.Delay(new Random().Next(500, 2000)).ContinueWith(_ =>
-                                this.StartConsume()); return;
-                        }
-                    }
-
-                    try { base.Model = this._connection.CreateModel(); }
-                    catch (Exception ex)
-                    {
-                        Trace.TraceError(ex.ToString());
-                        Task.Delay(new Random().Next(500, 2000)).ContinueWith(_ =>
-                            this.StartConsume()); return;
-                    }
-                }
-
-                try
-                {
-                    base.Model.QueueDeclare(this.QueueName, false, true, true, null);
-                    base.Model.QueueBind(this.QueueName, this.Exchange, this.QueueName);
-                    base.Model.BasicConsume(this.QueueName, true, this);
-                }
-                catch (Exception ex)
-                {
-                    Trace.TraceError(ex.ToString());
-                    Task.Delay(new Random().Next(500, 2000)).ContinueWith(_ =>
-                        this.StartConsume()); return;
-                }
-            }
+            Trace.TraceError(reason.ToString());
+            Task.Delay(new Random(BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0)).Next(500, 2000))
+                .ContinueWith(_ => this._server.Call(new ListenMessage()));
         }
         #endregion
 
@@ -169,12 +184,23 @@ namespace SharpOTP.Remote
         /// </summary>
         public void Dispose()
         {
-            this._disposed = true;
-
-            var connection = this._connection;
-            if (connection != null) connection.Dispose();
-
+            this._server.Call<bool>(new DisposeMessage()).Wait();
             GC.SuppressFinalize(this);
+        }
+        #endregion
+
+        #region Actor Message
+        /// <summary>
+        /// listen message
+        /// </summary>
+        public sealed class ListenMessage
+        {
+        }
+        /// <summary>
+        /// dispose message
+        /// </summary>
+        public sealed class DisposeMessage
+        {
         }
         #endregion
     }
