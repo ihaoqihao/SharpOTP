@@ -82,7 +82,14 @@ namespace SharpOTP.Remote
                 throw new ObjectDisposedException("message.publisher");
 
             if (this._connection == null || !this._connection.IsOpen)
+            {
+                if (this._connection != null)
+                {
+                    this._connection.Dispose();
+                    this._connection = null;
+                }
                 this._connection = this._factory.CreateConnection();
+            }
 
             return this._connection.CreateModel();
         }
@@ -94,7 +101,11 @@ namespace SharpOTP.Remote
         public async Task<bool> HandleCall(DisposeMessage message)
         {
             this._isdisposed = true;
-            if (this._connection != null) this._connection.Dispose();
+            if (this._connection != null)
+            {
+                this._connection.Dispose();
+                this._connection = null;
+            }
             return true;
         }
         #endregion
@@ -172,6 +183,12 @@ namespace SharpOTP.Remote
             {
                 if (this._channel == null || this._channel.IsClosed)
                 {
+                    //dispose channel
+                    if (this._channel != null)
+                    {
+                        this._channel.Dispose();
+                        this._channel = null;
+                    }
                     //create channel.
                     try { this._channel = await this._publisher.CreateChannel(); }
                     catch (Exception ex) { Trace.TraceError(ex.ToString()); }

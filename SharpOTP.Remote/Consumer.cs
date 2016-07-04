@@ -92,28 +92,36 @@ namespace SharpOTP.Remote
         {
             if (this._disposed) return;
 
-            if (base.Model == null || base.Model.IsClosed)
+            //dispose model
+            if (base.Model != null)
             {
-                if (this._connection == null || !this._connection.IsOpen)
-                {
-                    try { this._connection = this._factory.CreateConnection(); }
-                    catch (Exception ex)
-                    {
-                        Trace.TraceError(ex.ToString());
-                        Task.Delay(new Random(BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0)).Next(500, 2000))
-                            .ContinueWith(_ => this._server.Call(new ListenMessage()));
-                        return;
-                    }
-                }
+                var model = base.Model;
+                model.Dispose();
+                base.Model = null;
+            }
+            //dispose connection
+            if (this._connection != null)
+            {
+                this._connection.Dispose();
+                this._connection = null;
+            }
 
-                try { base.Model = this._connection.CreateModel(); }
-                catch (Exception ex)
-                {
-                    Trace.TraceError(ex.ToString());
-                    Task.Delay(new Random(BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0)).Next(500, 2000))
-                        .ContinueWith(_ => this._server.Call(new ListenMessage()));
-                    return;
-                }
+            try { this._connection = this._factory.CreateConnection(); }
+            catch (Exception ex)
+            {
+                Trace.TraceError(ex.ToString());
+                Task.Delay(new Random(BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0)).Next(500, 2000))
+                    .ContinueWith(_ => this._server.Call(new ListenMessage()));
+                return;
+            }
+
+            try { base.Model = this._connection.CreateModel(); }
+            catch (Exception ex)
+            {
+                Trace.TraceError(ex.ToString());
+                Task.Delay(new Random(BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0)).Next(500, 2000))
+                    .ContinueWith(_ => this._server.Call(new ListenMessage()));
+                return;
             }
 
             try
@@ -138,7 +146,11 @@ namespace SharpOTP.Remote
         public async Task<bool> HandleCall(DisposeMessage message)
         {
             this._disposed = true;
-            if (this._connection != null) this._connection.Dispose();
+            if (this._connection != null)
+            {
+                this._connection.Dispose();
+                this._connection = null;
+            }
             return true;
         }
         #endregion
@@ -166,12 +178,14 @@ namespace SharpOTP.Remote
             this._callback(ThriftMarshaller.Deserialize<Messaging.Message>(body));
         }
         /// <summary>
-        /// on channel shutdown 
+        /// on channel shutdown
         /// </summary>
         /// <param name="model"></param>
         /// <param name="reason"></param>
         public override void HandleModelShutdown(object model, ShutdownEventArgs reason)
         {
+            base.HandleModelShutdown(model, reason);
+
             Trace.TraceError(reason.ToString());
             Task.Delay(new Random(BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0)).Next(500, 2000))
                 .ContinueWith(_ => this._server.Call(new ListenMessage()));
