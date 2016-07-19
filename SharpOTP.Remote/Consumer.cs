@@ -96,13 +96,15 @@ namespace SharpOTP.Remote
             if (base.Model != null)
             {
                 var model = base.Model;
-                model.Dispose();
+                try { model.Dispose(); }
+                catch { }
                 base.Model = null;
             }
             //dispose connection
             if (this._connection != null)
             {
-                this._connection.Dispose();
+                try { this._connection.Dispose(); }
+                catch { }
                 this._connection = null;
             }
 
@@ -148,7 +150,8 @@ namespace SharpOTP.Remote
             this._disposed = true;
             if (this._connection != null)
             {
-                this._connection.Dispose();
+                try { this._connection.Dispose(); }
+                catch { }
                 this._connection = null;
             }
             return true;
@@ -187,7 +190,7 @@ namespace SharpOTP.Remote
             base.HandleModelShutdown(model, reason);
 
             Trace.TraceError(reason.ToString());
-            Task.Delay(new Random(BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0)).Next(500, 2000))
+            Task.Delay(new Random(BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0)).Next(50, 500))
                 .ContinueWith(_ => this._server.Call(new ListenMessage()));
         }
         #endregion

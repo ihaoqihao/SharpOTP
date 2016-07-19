@@ -83,14 +83,17 @@ namespace SharpOTP.Remote
 
             if (this._connection == null || !this._connection.IsOpen)
             {
+                //dispose connection
                 if (this._connection != null)
                 {
-                    this._connection.Dispose();
+                    try { this._connection.Dispose(); }
+                    catch { }
                     this._connection = null;
                 }
+                //create connection
                 this._connection = this._factory.CreateConnection();
             }
-
+            //create channel
             return this._connection.CreateModel();
         }
         /// <summary>
@@ -103,7 +106,8 @@ namespace SharpOTP.Remote
             this._isdisposed = true;
             if (this._connection != null)
             {
-                this._connection.Dispose();
+                try { this._connection.Dispose(); }
+                catch { }
                 this._connection = null;
             }
             return true;
@@ -186,7 +190,8 @@ namespace SharpOTP.Remote
                     //dispose channel
                     if (this._channel != null)
                     {
-                        this._channel.Dispose();
+                        try { this._channel.Dispose(); }
+                        catch { }
                         this._channel = null;
                     }
                     //create channel.
