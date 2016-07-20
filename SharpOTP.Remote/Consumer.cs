@@ -73,8 +73,8 @@ namespace SharpOTP.Remote
                 HostName = config.Host,
                 Port = config.Port,
                 UserName = config.UserName,
-                Password = config.Password,
-                VirtualHost = config.VHost
+                Password = config.Password, 
+                VirtualHost = config.VHost,
             };
 
             this._server = GenServer.Start(this);
@@ -91,38 +91,24 @@ namespace SharpOTP.Remote
         public async Task HandleCall(ListenMessage message)
         {
             if (this._disposed) return;
-
-            //dispose model
-            if (base.Model != null)
-            {
-                var model = base.Model;
-                try { model.Dispose(); }
-                catch { }
-                base.Model = null;
-            }
-            //dispose connection
-            if (this._connection != null)
-            {
-                try { this._connection.Dispose(); }
-                catch { }
-                this._connection = null;
-            }
+            if (this._connection != null && this._connection.IsOpen) return;
 
             try { this._connection = this._factory.CreateConnection(); }
             catch (Exception ex)
             {
+                this.ReListen();
                 Trace.TraceError(ex.ToString());
-                Task.Delay(new Random(BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0)).Next(500, 2000))
-                    .ContinueWith(_ => this._server.Call(new ListenMessage()));
                 return;
             }
 
             try { base.Model = this._connection.CreateModel(); }
             catch (Exception ex)
             {
+                try { this._connection.Close(); }
+                catch (Exception ex2) { Trace.TraceError(ex2.ToString()); }
+                this._connection = null;
+                this.ReListen();
                 Trace.TraceError(ex.ToString());
-                Task.Delay(new Random(BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0)).Next(500, 2000))
-                    .ContinueWith(_ => this._server.Call(new ListenMessage()));
                 return;
             }
 
@@ -134,9 +120,11 @@ namespace SharpOTP.Remote
             }
             catch (Exception ex)
             {
+                try { this._connection.Close(); }
+                catch (Exception ex2) { Trace.TraceError(ex2.ToString()); }
+                this._connection = null;
+                this.ReListen();
                 Trace.TraceError(ex.ToString());
-                Task.Delay(new Random(BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0)).Next(500, 2000))
-                    .ContinueWith(_ => this._server.Call(new ListenMessage()));
                 return;
             }
         }
@@ -150,8 +138,8 @@ namespace SharpOTP.Remote
             this._disposed = true;
             if (this._connection != null)
             {
-                try { this._connection.Dispose(); }
-                catch { }
+                try { this._connection.Close(); }
+                catch (Exception ex) { Trace.TraceError(ex.ToString()); }
                 this._connection = null;
             }
             return true;
@@ -188,10 +176,8 @@ namespace SharpOTP.Remote
         public override void HandleModelShutdown(object model, ShutdownEventArgs reason)
         {
             base.HandleModelShutdown(model, reason);
-
+            this.ReListen();
             Trace.TraceError(reason.ToString());
-            Task.Delay(new Random(BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0)).Next(50, 500))
-                .ContinueWith(_ => this._server.Call(new ListenMessage()));
         }
         #endregion
 
@@ -203,6 +189,17 @@ namespace SharpOTP.Remote
         {
             this._server.Call<bool>(new DisposeMessage()).Wait();
             GC.SuppressFinalize(this);
+        }
+        #endregion
+
+        #region Private Methods
+        /// <summary>
+        /// re listen
+        /// </summary>
+        private void ReListen()
+        {
+            Task.Delay(new Random(BitConverter.ToInt32(Guid.NewGuid().ToByteArray(), 0)).Next(1000, 5000))
+                .ContinueWith(_ => this._server.Call(new ListenMessage()));
         }
         #endregion
 
