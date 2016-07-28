@@ -41,13 +41,12 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Actor.cs" />
+    <Compile Include="ActorMessages.cs" />
     <Compile Include="Counter.cs" />
     <Compile Include="DateTimeSlim.cs" />
     <Compile Include="GenServer.cs" />
-    <Compile Include="InitMessage.cs" />
     <Compile Include="Message.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="TimeMessage.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
