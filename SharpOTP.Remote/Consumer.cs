@@ -73,8 +73,9 @@ namespace SharpOTP.Remote
                 HostName = config.Host,
                 Port = config.Port,
                 UserName = config.UserName,
-                Password = config.Password, 
+                Password = config.Password,
                 VirtualHost = config.VHost,
+                RequestedHeartbeat = 10,
             };
 
             this._server = GenServer.Start(this);
