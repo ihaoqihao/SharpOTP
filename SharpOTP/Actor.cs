@@ -85,15 +85,13 @@ namespace SharpOTP
         /// call
         /// </summary>
         /// <param name="argument"></param>
-        /// <returns></returns>
-        public bool Call(dynamic argument)
+        /// <exception cref="ObjectDisposedException"></exception>
+        public void Call(dynamic argument)
         {
-            if (this._block.Post(new Message(argument)))
-            {
-                if (this._counter != null) this._counter.Post();
-                return true;
-            }
-            return false;
+            if (!this._block.Post(new Message(argument)))
+                throw new ObjectDisposedException("actor.block");
+
+            if (this._counter != null) this._counter.Post();
         }
         /// <summary>
         /// call
@@ -101,15 +99,15 @@ namespace SharpOTP
         /// <typeparam name="TResult"></typeparam>
         /// <param name="argument"></param>
         /// <returns></returns>
+        /// <exception cref="ObjectDisposedException"></exception>
         public Task<TResult> Call<TResult>(dynamic argument)
         {
             var source = new TaskCompletionSource<TResult>();
-            if (this._block.Post(new Message(argument, source)))
-            {
-                if (this._counter != null) this._counter.Post();
-                return source.Task;
-            }
-            return null;
+            if (!this._block.Post(new Message(argument, source)))
+                throw new ObjectDisposedException("actor.block");
+
+            if (this._counter != null) this._counter.Post();
+            return source.Task;
         }
         #endregion
 
