@@ -22,6 +22,7 @@ namespace SharpOTP.Remote
         /// get hash code
         /// </summary>
         /// <param name="key"></param>
+        /// <param name="nTime"></param>
         /// <returns></returns>
         static public uint GetHashCode(string key, int nTime)
         {
