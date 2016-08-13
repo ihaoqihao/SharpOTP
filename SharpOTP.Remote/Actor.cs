@@ -162,11 +162,10 @@ namespace SharpOTP.Remote
         /// <typeparam name="TRequest"></typeparam>
         /// <param name="methodName"></param>
         /// <param name="actor"></param>
-        /// <returns></returns>
-        public bool Register<TRequest>(string methodName, SharpOTP.Actor actor)
+        public void Register<TRequest>(string methodName, SharpOTP.Actor actor)
             where TRequest : Thrift.Protocol.TBase, new()
         {
-            return this._processor.Register<TRequest>(methodName, actor);
+            this._processor.Register<TRequest>(methodName, actor);
         }
         /// <summary>
         /// register
@@ -175,12 +174,11 @@ namespace SharpOTP.Remote
         /// <typeparam name="TResult"></typeparam>
         /// <param name="methodName"></param>
         /// <param name="actor"></param>
-        /// <returns></returns>
-        public bool Register<TRequest, TResult>(string methodName, SharpOTP.Actor actor)
+        public void Register<TRequest, TResult>(string methodName, SharpOTP.Actor actor)
             where TRequest : Thrift.Protocol.TBase, new()
             where TResult : Thrift.Protocol.TBase, new()
         {
-            return this._processor.Register<TRequest, TResult>(methodName, actor);
+            this._processor.Register<TRequest, TResult>(methodName, actor);
         }
 
         /// <summary>
@@ -323,9 +321,9 @@ namespace SharpOTP.Remote
         /// </summary>
         /// <typeparam name="TRequest"></typeparam>
         /// <typeparam name="TResult"></typeparam>
-        /// <param name="key"></param>
         /// <param name="methodName"></param>
         /// <param name="request"></param>
+        /// <param name="timeout"></param>
         /// <returns></returns>
         public Task<TResult[]> Call<TRequest, TResult>(string methodName, TRequest request, int timeout)
             where TRequest : Thrift.Protocol.TBase, new()
@@ -552,9 +550,13 @@ namespace SharpOTP.Remote
             /// </summary>
             /// <param name="context"></param>
             /// <returns></returns>
-            public async Task HandleCall(Context context)
+            public async Task<bool> HandleCall(Context context)
             {
+                if (this._dicCtx.ContainsKey(context.MethodName))
+                    throw new ApplicationException(string.Concat("the method [", context.MethodName, "] is registered."));
+
                 this._dicCtx[context.MethodName] = context;
+                return true;
             }
             /// <summary>
             /// on message
@@ -599,14 +601,13 @@ namespace SharpOTP.Remote
             /// <typeparam name="TRequest"></typeparam>
             /// <param name="methodName"></param>
             /// <param name="actor"></param>
-            /// <returns></returns>
-            public bool Register<TRequest>(string methodName, SharpOTP.Actor actor)
+            public void Register<TRequest>(string methodName, SharpOTP.Actor actor)
                 where TRequest : Thrift.Protocol.TBase, new()
             {
                 if (methodName == null) throw new ArgumentNullException("methodName");
                 if (actor == null) throw new ArgumentNullException("actor");
 
-                return this._server.Call(new Context<TRequest>(methodName, actor));
+                this._server.Call<bool>(new Context<TRequest>(methodName, actor)).Wait();
             }
             /// <summary>
             /// register
@@ -615,15 +616,14 @@ namespace SharpOTP.Remote
             /// <typeparam name="TResult"></typeparam>
             /// <param name="methodName"></param>
             /// <param name="actor"></param>
-            /// <returns></returns>
-            public bool Register<TRequest, TResult>(string methodName, SharpOTP.Actor actor)
+            public void Register<TRequest, TResult>(string methodName, SharpOTP.Actor actor)
                 where TRequest : Thrift.Protocol.TBase, new()
                 where TResult : Thrift.Protocol.TBase, new()
             {
                 if (methodName == null) throw new ArgumentNullException("methodName");
                 if (actor == null) throw new ArgumentNullException("actor");
 
-                return this._server.Call(new Context<TRequest, TResult>(methodName, actor, this._publisher));
+                this._server.Call<bool>(new Context<TRequest, TResult>(methodName, actor, this._publisher)).Wait();
             }
             /// <summary>
             /// message
@@ -717,7 +717,7 @@ namespace SharpOTP.Remote
                 /// <summary>
                 /// actor
                 /// </summary>
-                private readonly SharpOTP.Actor Actor;
+                private readonly SharpOTP.Actor _actor;
                 #endregion
 
                 #region Constructors
@@ -732,7 +732,7 @@ namespace SharpOTP.Remote
                     if (actor == null) throw new ArgumentNullException("actor");
 
                     this.MethodName = methodName;
-                    this.Actor = actor;
+                    this._actor = actor;
                 }
                 #endregion
 
@@ -747,10 +747,9 @@ namespace SharpOTP.Remote
                 /// </summary>
                 /// <typeparam name="TRequest"></typeparam>
                 /// <param name="request"></param>
-                /// <returns></returns>
-                public bool Call<TRequest>(TRequest request)
+                public void Call<TRequest>(TRequest request)
                 {
-                    return this.Actor.Call(request);
+                    this._actor.Call(request);
                 }
                 /// <summary>
                 /// call
@@ -761,7 +760,7 @@ namespace SharpOTP.Remote
                 /// <returns></returns>
                 public Task<TResult> Call<TRequest, TResult>(TRequest request)
                 {
-                    return this.Actor.Call<TResult>(request);
+                    return this._actor.Call<TResult>(request);
                 }
                 #endregion
             }
