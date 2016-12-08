@@ -53,9 +53,14 @@ namespace SharpOTP
                 if (this._counter != null) sw = Stopwatch.StartNew();
 
                 Task t = null;
-                try { t = this._server.HandleCall(message.Argument) as Task; }
-                catch (Exception ex) { t = FromException(ex); }
-                if (t == null) t = FromException(new InvalidOperationException("actor.HandleCall"));
+                if (message.IsTimeout())
+                    t = FromException(new TimeoutException("actor.HandleCall"));
+                else
+                {
+                    try { t = this._server.HandleCall(message.Argument) as Task; }
+                    catch (Exception ex) { t = FromException(ex); }
+                    if (t == null) t = FromException(new InvalidOperationException("actor.HandleCall"));
+                }
 
                 message.Callback(t);
                 return t.ContinueWith(c =>
@@ -85,12 +90,20 @@ namespace SharpOTP
         /// call
         /// </summary>
         /// <param name="argument"></param>
-        /// <exception cref="ObjectDisposedException"></exception>
         public void Call(dynamic argument)
         {
-            if (!this._block.Post(new Message(argument)))
-                throw new ObjectDisposedException("actor.block");
-
+            if (!this._block.Post(new Message(argument))) return;
+            if (this._counter != null) this._counter.Post();
+        }
+        /// <summary>
+        /// call
+        /// </summary>
+        /// <param name="argument"></param>
+        /// <param name="millisecondsTimeout"></param>
+        /// <exception cref="ObjectDisposedException"></exception>
+        public void Call(dynamic argument, int millisecondsTimeout)
+        {
+            if (!this._block.Post(new Message(argument, millisecondsTimeout))) return;
             if (this._counter != null) this._counter.Post();
         }
         /// <summary>
@@ -99,12 +112,27 @@ namespace SharpOTP
         /// <typeparam name="TResult"></typeparam>
         /// <param name="argument"></param>
         /// <returns></returns>
-        /// <exception cref="ObjectDisposedException"></exception>
         public Task<TResult> Call<TResult>(dynamic argument)
         {
             var source = new TaskCompletionSource<TResult>();
             if (!this._block.Post(new Message(argument, source)))
-                throw new ObjectDisposedException("actor.block");
+                source.TrySetException(new ObjectDisposedException("actor"));
+
+            if (this._counter != null) this._counter.Post();
+            return source.Task;
+        }
+        /// <summary>
+        /// call
+        /// </summary>
+        /// <typeparam name="TResult"></typeparam>
+        /// <param name="argument"></param>
+        /// <param name="millisecondsTimeout"></param>
+        /// <returns></returns>
+        public Task<TResult> Call<TResult>(dynamic argument, int millisecondsTimeout)
+        {
+            var source = new TaskCompletionSource<TResult>();
+            if (!this._block.Post(new Message(argument, source, millisecondsTimeout)))
+                source.TrySetException(new ObjectDisposedException("actor"));
 
             if (this._counter != null) this._counter.Post();
             return source.Task;

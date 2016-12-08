@@ -16,6 +16,10 @@ namespace SharpOTP
         /// 参数
         /// </summary>
         public readonly dynamic Argument;
+        /// <summary>
+        /// 过期时间, defautl is DateTime.MaxValue
+        /// </summary>
+        public readonly DateTime ExpireTime = DateTime.MaxValue;
 
         /// <summary>
         /// new
@@ -29,11 +33,33 @@ namespace SharpOTP
         /// new
         /// </summary>
         /// <param name="argument"></param>
+        /// <param name="millisecondsTimeout"></param>
+        public Message(dynamic argument, int millisecondsTimeout)
+        {
+            this.Argument = argument;
+            this.ExpireTime = DateTimeSlim.UtcNow.AddMilliseconds(millisecondsTimeout);
+        }
+        /// <summary>
+        /// new
+        /// </summary>
+        /// <param name="argument"></param>
         /// <param name="taskSource"></param>
         public Message(dynamic argument, dynamic taskSource)
         {
             this.Argument = argument;
             this._taskSource = taskSource;
+        }
+        /// <summary>
+        /// new
+        /// </summary>
+        /// <param name="argument"></param>
+        /// <param name="taskSource"></param>
+        /// <param name="millisecondsTimeout"></param>
+        public Message(dynamic argument, dynamic taskSource, int millisecondsTimeout)
+        {
+            this.Argument = argument;
+            this._taskSource = taskSource;
+            this.ExpireTime = DateTimeSlim.UtcNow.AddMilliseconds(millisecondsTimeout);
         }
 
         /// <summary>
@@ -51,6 +77,15 @@ namespace SharpOTP
                 if (c.IsFaulted) this._taskSource.TrySetException(c.Exception.InnerException);
                 else this._taskSource.TrySetResult(((dynamic)task).Result);
             });
+        }
+
+        /// <summary>
+        /// true is timeout
+        /// </summary>
+        /// <returns></returns>
+        public bool IsTimeout()
+        {
+            return DateTimeSlim.UtcNow >= this.ExpireTime;
         }
     }
 }
