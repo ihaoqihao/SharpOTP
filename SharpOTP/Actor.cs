@@ -100,7 +100,6 @@ namespace SharpOTP
         /// </summary>
         /// <param name="argument"></param>
         /// <param name="millisecondsTimeout"></param>
-        /// <exception cref="ObjectDisposedException"></exception>
         public void Call(dynamic argument, int millisecondsTimeout)
         {
             if (!this._block.Post(new Message(argument, millisecondsTimeout))) return;
