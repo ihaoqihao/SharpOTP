@@ -23,10 +23,12 @@ namespace SharpOTP.Remote.Messaging
     private string _MethodName;
     private byte[] _Payload;
     private RemotingException _Exception;
-    private string _To;
     private string _ReplyTo;
     private long _CorrentionId;
     private List<byte[]> _ListPayload;
+    private string _To;
+    private long _CreatedTick;
+    private int _MillisecondsTimeout;
 
     public Actions Action
     {
@@ -80,19 +82,6 @@ namespace SharpOTP.Remote.Messaging
       }
     }
 
-    public string To
-    {
-      get
-      {
-        return _To;
-      }
-      set
-      {
-        __isset.To = true;
-        this._To = value;
-      }
-    }
-
     public string ReplyTo
     {
       get
@@ -132,6 +121,45 @@ namespace SharpOTP.Remote.Messaging
       }
     }
 
+    public string To
+    {
+      get
+      {
+        return _To;
+      }
+      set
+      {
+        __isset.To = true;
+        this._To = value;
+      }
+    }
+
+    public long CreatedTick
+    {
+      get
+      {
+        return _CreatedTick;
+      }
+      set
+      {
+        __isset.CreatedTick = true;
+        this._CreatedTick = value;
+      }
+    }
+
+    public int MillisecondsTimeout
+    {
+      get
+      {
+        return _MillisecondsTimeout;
+      }
+      set
+      {
+        __isset.MillisecondsTimeout = true;
+        this._MillisecondsTimeout = value;
+      }
+    }
+
 
     public Isset __isset;
     [Serializable]
@@ -140,10 +168,12 @@ namespace SharpOTP.Remote.Messaging
       public bool MethodName;
       public bool Payload;
       public bool Exception;
-      public bool To;
       public bool ReplyTo;
       public bool CorrentionId;
       public bool ListPayload;
+      public bool To;
+      public bool CreatedTick;
+      public bool MillisecondsTimeout;
     }
 
     public Message() {
@@ -190,13 +220,6 @@ namespace SharpOTP.Remote.Messaging
               TProtocolUtil.Skip(iprot, field.Type);
             }
             break;
-          case 6:
-            if (field.Type == TType.String) {
-              To = iprot.ReadString();
-            } else { 
-              TProtocolUtil.Skip(iprot, field.Type);
-            }
-            break;
           case 7:
             if (field.Type == TType.String) {
               ReplyTo = iprot.ReadString();
@@ -224,6 +247,27 @@ namespace SharpOTP.Remote.Messaging
                 }
                 iprot.ReadListEnd();
               }
+            } else { 
+              TProtocolUtil.Skip(iprot, field.Type);
+            }
+            break;
+          case 20:
+            if (field.Type == TType.String) {
+              To = iprot.ReadString();
+            } else { 
+              TProtocolUtil.Skip(iprot, field.Type);
+            }
+            break;
+          case 21:
+            if (field.Type == TType.I64) {
+              CreatedTick = iprot.ReadI64();
+            } else { 
+              TProtocolUtil.Skip(iprot, field.Type);
+            }
+            break;
+          case 22:
+            if (field.Type == TType.I32) {
+              MillisecondsTimeout = iprot.ReadI32();
             } else { 
               TProtocolUtil.Skip(iprot, field.Type);
             }
@@ -273,14 +317,6 @@ namespace SharpOTP.Remote.Messaging
         Exception.Write(oprot);
         oprot.WriteFieldEnd();
       }
-      if (To != null && __isset.To) {
-        field.Name = "To";
-        field.Type = TType.String;
-        field.ID = 6;
-        oprot.WriteFieldBegin(field);
-        oprot.WriteString(To);
-        oprot.WriteFieldEnd();
-      }
       if (ReplyTo != null && __isset.ReplyTo) {
         field.Name = "ReplyTo";
         field.Type = TType.String;
@@ -312,6 +348,30 @@ namespace SharpOTP.Remote.Messaging
         }
         oprot.WriteFieldEnd();
       }
+      if (To != null && __isset.To) {
+        field.Name = "To";
+        field.Type = TType.String;
+        field.ID = 20;
+        oprot.WriteFieldBegin(field);
+        oprot.WriteString(To);
+        oprot.WriteFieldEnd();
+      }
+      if (__isset.CreatedTick) {
+        field.Name = "CreatedTick";
+        field.Type = TType.I64;
+        field.ID = 21;
+        oprot.WriteFieldBegin(field);
+        oprot.WriteI64(CreatedTick);
+        oprot.WriteFieldEnd();
+      }
+      if (__isset.MillisecondsTimeout) {
+        field.Name = "MillisecondsTimeout";
+        field.Type = TType.I32;
+        field.ID = 22;
+        oprot.WriteFieldBegin(field);
+        oprot.WriteI32(MillisecondsTimeout);
+        oprot.WriteFieldEnd();
+      }
       oprot.WriteFieldStop();
       oprot.WriteStructEnd();
     }
@@ -326,14 +386,18 @@ namespace SharpOTP.Remote.Messaging
       sb.Append(Payload);
       sb.Append(",Exception: ");
       sb.Append(Exception== null ? "<null>" : Exception.ToString());
-      sb.Append(",To: ");
-      sb.Append(To);
       sb.Append(",ReplyTo: ");
       sb.Append(ReplyTo);
       sb.Append(",CorrentionId: ");
       sb.Append(CorrentionId);
       sb.Append(",ListPayload: ");
       sb.Append(ListPayload);
+      sb.Append(",To: ");
+      sb.Append(To);
+      sb.Append(",CreatedTick: ");
+      sb.Append(CreatedTick);
+      sb.Append(",MillisecondsTimeout: ");
+      sb.Append(MillisecondsTimeout);
       sb.Append(")");
       return sb.ToString();
     }

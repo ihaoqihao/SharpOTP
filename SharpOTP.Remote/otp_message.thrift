@@ -27,10 +27,12 @@ struct Message
 	3:string MethodName;					//method name
 	4:binary Payload;						//message body
 	5:RemotingException Exception;			//exception
-	6:string To;							//to queue name.
 	7:string ReplyTo;						//reply to queue name.
 	8:i64 CorrentionId;						//reply to corrention Id
     9:list<binary> ListPayload;             //payload list
+    20:string To;                           //to queue name.
+    21:i64 CreatedTick;                     //created time ticks(注：此字段不会序列化)
+    22:i32 MillisecondsTimeout;             //超时时间
 }
 
 /**

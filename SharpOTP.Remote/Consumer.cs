@@ -166,8 +166,12 @@ namespace SharpOTP.Remote
             IBasicProperties properties,
             byte[] body)
         {
-            if (body == null || body.Length == 0) return;
-            this._callback(ThriftMarshaller.Deserialize<Messaging.Message>(body));
+            Messaging.Message message = null;
+            try { message = ThriftMarshaller.Deserialize<Messaging.Message>(body); }
+            catch (Exception ex) { Trace.TraceError(ex.ToString()); return; }
+
+            message.CreatedTick = DateTimeSlim.UtcNow.Ticks;
+            this._callback(message);
         }
         /// <summary>
         /// on channel shutdown

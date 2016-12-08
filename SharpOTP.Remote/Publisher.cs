@@ -36,6 +36,10 @@ namespace SharpOTP.Remote
         /// </summary>
         private IConnection _connection = null;
         /// <summary>
+        /// get or set last connect time
+        /// </summary>
+        private DateTime _lastConnectTime = DateTime.MinValue;
+        /// <summary>
         /// seqId
         /// </summary>
         private int _seqId = -1;
@@ -83,7 +87,12 @@ namespace SharpOTP.Remote
 
             //create connection
             if (this._connection == null || !this._connection.IsOpen)
+            {
+                var dtNow = DateTimeSlim.UtcNow;
+                if (dtNow.Subtract(this._lastConnectTime).TotalMilliseconds < 500) return null;
+                this._lastConnectTime = dtNow;
                 this._connection = this._factory.CreateConnection();
+            }
 
             //create channel
             return this._connection.CreateModel();
@@ -130,12 +139,13 @@ namespace SharpOTP.Remote
         /// publish
         /// </summary>
         /// <param name="message"></param>
+        /// <param name="millisecondsTimeout"></param>
         /// <returns></returns>
-        public Task Publish(Messaging.Message message)
+        public Task Publish(Messaging.Message message, int millisecondsTimeout)
         {
             if (message == null) throw new ArgumentNullException("message");
             var index = (Interlocked.Increment(ref this._seqId) & int.MaxValue) % this._arrWorkers.Length;
-            return this._arrWorkers[index].Post(message);
+            return this._arrWorkers[index].Post(message, millisecondsTimeout);
         }
         #endregion
 
@@ -179,12 +189,22 @@ namespace SharpOTP.Remote
             {
                 if (this._channel == null || this._channel.IsClosed)
                 {
-                    //create channel.
                     try { this._channel = await this._publisher.CreateChannel(); }
                     catch (Exception ex) { Trace.TraceError(ex.ToString()); }
-
                     if (this._channel == null || this._channel.IsClosed)
                         throw new ApplicationException("rabbitMQ channel unavailable");
+                }
+
+                var ticksNow = DateTimeSlim.UtcNow.Ticks;
+                message.MillisecondsTimeout = message.MillisecondsTimeout - Math.Max(0, (int)(ticksNow - message.CreatedTick) / 10000);
+                if (message.MillisecondsTimeout <= 0)
+                {
+                    switch (message.Action)
+                    {
+                        case Messaging.Actions.Request: throw new TimeoutException("publish request timeout");
+                        case Messaging.Actions.Response: throw new TimeoutException("publish response timeout");
+                        default: throw new TimeoutException();
+                    }
                 }
 
                 this._channel.BasicPublish(this._exchange, message.To, null, ThriftMarshaller.Serialize(message));
@@ -197,10 +217,11 @@ namespace SharpOTP.Remote
             /// post
             /// </summary>
             /// <param name="message"></param>
+            /// <param name="millisecondsTimeout"></param>
             /// <returns></returns>
-            public Task Post(Messaging.Message message)
+            public Task Post(Messaging.Message message, int millisecondsTimeout)
             {
-                return this._server.Call<bool>(message);
+                return this._server.Call<bool>(message, millisecondsTimeout);
             }
             #endregion
         }
