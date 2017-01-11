@@ -54,7 +54,7 @@ namespace SharpOTP
 
                 Task t = null;
                 if (message.IsTimeout())
-                    t = FromException(new TimeoutException("actor.HandleCall"));
+                    t = FromException(new TimeoutException(string.Concat("actor.HandleCall(", message.Argument.GetType().ToString(), ")")));
                 else
                 {
                     try { t = this._server.HandleCall(message.Argument) as Task; }

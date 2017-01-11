@@ -200,15 +200,29 @@ namespace SharpOTP.Remote
         public void Broadcast<TRequest>(string methodName, TRequest request, bool excludeCurrNode = false)
             where TRequest : Thrift.Protocol.TBase, new()
         {
+            this.Broadcast<TRequest>(methodName, request, this.RemoteTimeout, excludeCurrNode);
+        }
+        /// <summary>
+        /// broadcast
+        /// </summary>
+        /// <typeparam name="TRequest"></typeparam>
+        /// <param name="methodName"></param>
+        /// <param name="request"></param>
+        /// <param name="millisecondsTimeout"></param>
+        /// <param name="excludeCurrNode"></param>
+        public void Broadcast<TRequest>(string methodName, TRequest request, int millisecondsTimeout, bool excludeCurrNode = false)
+            where TRequest : Thrift.Protocol.TBase, new()
+        {
             var arrNodes = this._dispatchPolicy.GetAllNodes();
             if (arrNodes == null || arrNodes.Length == 0) return;
 
             foreach (var node in arrNodes)
             {
                 if (excludeCurrNode && node == this.CurrNode) continue;
-                this.CallTo<TRequest>(node, methodName, request);
+                this.CallTo<TRequest>(node, methodName, request, millisecondsTimeout);
             }
         }
+
         /// <summary>
         /// broadcast
         /// </summary>
@@ -217,8 +231,28 @@ namespace SharpOTP.Remote
         /// <param name="methodName"></param>
         /// <param name="request"></param>
         /// <param name="excludeCurrNode"></param>
+        /// <param name="ignoreException"></param>
         /// <returns></returns>
-        public Task<TResult[]> Broadcast<TRequest, TResult>(string methodName, TRequest request, bool excludeCurrNode = false)
+        public Task<TResult[]> Broadcast<TRequest, TResult>(string methodName, TRequest request,
+            bool excludeCurrNode = false, bool ignoreException = false)
+            where TRequest : Thrift.Protocol.TBase, new()
+            where TResult : Thrift.Protocol.TBase, new()
+        {
+            return this.Broadcast<TRequest, TResult>(methodName, request, this.RemoteTimeout, excludeCurrNode, ignoreException);
+        }
+        /// <summary>
+        /// broadcast
+        /// </summary>
+        /// <typeparam name="TRequest"></typeparam>
+        /// <typeparam name="TResult"></typeparam>
+        /// <param name="methodName"></param>
+        /// <param name="request"></param>
+        /// <param name="millisecondsTimeout"></param>
+        /// <param name="excludeCurrNode"></param>
+        /// <param name="ignoreException"></param>
+        /// <returns></returns>
+        public Task<TResult[]> Broadcast<TRequest, TResult>(string methodName, TRequest request, int millisecondsTimeout,
+            bool excludeCurrNode = false, bool ignoreException = false)
             where TRequest : Thrift.Protocol.TBase, new()
             where TResult : Thrift.Protocol.TBase, new()
         {
@@ -228,10 +262,15 @@ namespace SharpOTP.Remote
             var arrTask = nodes.Select(n =>
             {
                 if (excludeCurrNode && n == this.CurrNode) return null;
-                return this.CallTo<TRequest, TResult>(n, methodName, request);
+                return this.CallTo<TRequest, TResult>(n, methodName, request, millisecondsTimeout);
             }).Where(t => t != null).ToArray();
             if (arrTask.Length == 0) return Task.FromResult(new TResult[0]);
 
+            if (ignoreException)
+            {
+                return Task.Factory.ContinueWhenAll(arrTask, arr =>
+                    arr.Where(c => !c.IsFaulted).Select(c => c.Result).ToArray());
+            }
             return Task.WhenAll(arrTask);
         }
         #endregion
@@ -247,7 +286,20 @@ namespace SharpOTP.Remote
         public void Call<TRequest>(string key, string methodName, TRequest request)
             where TRequest : Thrift.Protocol.TBase, new()
         {
-            this.CallTo<TRequest>(this._dispatchPolicy.GetNode(key), methodName, request);
+            this.CallTo<TRequest>(this._dispatchPolicy.GetNode(key), methodName, request, this.RemoteTimeout);
+        }
+        /// <summary>
+        /// call
+        /// </summary>
+        /// <typeparam name="TRequest"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="methodName"></param>
+        /// <param name="request"></param>
+        /// <param name="millisecondsTimeout"></param>
+        public void Call<TRequest>(string key, string methodName, TRequest request, int millisecondsTimeout)
+            where TRequest : Thrift.Protocol.TBase, new()
+        {
+            this.CallTo<TRequest>(this._dispatchPolicy.GetNode(key), methodName, request, millisecondsTimeout);
         }
         /// <summary>
         /// call to
@@ -256,9 +308,10 @@ namespace SharpOTP.Remote
         /// <param name="toNode"></param>
         /// <param name="methodName"></param>
         /// <param name="request"></param>
+        /// <param name="millisecondsTimeout"></param>
         /// <exception cref="ArgumentNullException">toNode is null.</exception>
         /// <exception cref="ArgumentNullException">method name is null.</exception>
-        public void CallTo<TRequest>(string toNode, string methodName, TRequest request)
+        public void CallTo<TRequest>(string toNode, string methodName, TRequest request, int millisecondsTimeout)
             where TRequest : Thrift.Protocol.TBase, new()
         {
             if (toNode == null) throw new ArgumentNullException("toNode");
@@ -267,7 +320,7 @@ namespace SharpOTP.Remote
             //本地节点，直接本地调用
             if (this.CurrNode == toNode)
             {
-                this._processor.Call(methodName, request, this.RemoteTimeout);
+                this._processor.Call(methodName, request, millisecondsTimeout);
                 return;
             }
 
@@ -279,9 +332,10 @@ namespace SharpOTP.Remote
                 MethodName = methodName,
                 Payload = Thrift.Util.ThriftMarshaller.Serialize(request),
                 CreatedTick = DateTimeSlim.UtcNow.Ticks,
-                MillisecondsTimeout = this.RemoteTimeout,
-            }, this.RemoteTimeout);
+                MillisecondsTimeout = millisecondsTimeout,
+            }, millisecondsTimeout);
         }
+
         /// <summary>
         /// batch call
         /// </summary>
@@ -290,6 +344,19 @@ namespace SharpOTP.Remote
         /// <param name="keyFactory"></param>
         /// <param name="arrRequest"></param>
         public void Call<TRequest>(string methodName, Func<TRequest, string> keyFactory, TRequest[] arrRequest)
+            where TRequest : Thrift.Protocol.TBase, new()
+        {
+            this.Call<TRequest>(methodName, keyFactory, arrRequest, this.RemoteTimeout);
+        }
+        /// <summary>
+        /// batch call
+        /// </summary>
+        /// <typeparam name="TRequest"></typeparam>
+        /// <param name="methodName"></param>
+        /// <param name="keyFactory"></param>
+        /// <param name="arrRequest"></param>
+        /// <param name="millisecondsTimeout"></param>
+        public void Call<TRequest>(string methodName, Func<TRequest, string> keyFactory, TRequest[] arrRequest, int millisecondsTimeout)
             where TRequest : Thrift.Protocol.TBase, new()
         {
             if (methodName == null) throw new ArgumentNullException("methodName");
@@ -301,7 +368,7 @@ namespace SharpOTP.Remote
                 //本地调用
                 if (c.Key == this.CurrNode)
                 {
-                    this._processor.Call(methodName, c.ToArray(), this.RemoteTimeout);
+                    this._processor.Call(methodName, c.ToArray(), millisecondsTimeout);
                     return;
                 }
 
@@ -313,10 +380,11 @@ namespace SharpOTP.Remote
                     MethodName = methodName,
                     ListPayload = c.Select(Thrift.Util.ThriftMarshaller.Serialize).ToList(),
                     CreatedTick = DateTimeSlim.UtcNow.Ticks,
-                    MillisecondsTimeout = this.RemoteTimeout,
-                }, this.RemoteTimeout);
+                    MillisecondsTimeout = millisecondsTimeout,
+                }, millisecondsTimeout);
             });
         }
+
         /// <summary>
         /// call
         /// </summary>
@@ -330,10 +398,10 @@ namespace SharpOTP.Remote
             where TRequest : Thrift.Protocol.TBase, new()
             where TResult : Thrift.Protocol.TBase, new()
         {
-            return this.CallTo<TRequest, TResult>(this._dispatchPolicy.GetNode(key), methodName, request);
+            return this.CallTo<TRequest, TResult>(this._dispatchPolicy.GetNode(key), methodName, request, this.RemoteTimeout);
         }
         /// <summary>
-        /// call to
+        /// call
         /// </summary>
         /// <typeparam name="TRequest"></typeparam>
         /// <typeparam name="TResult"></typeparam>
@@ -345,19 +413,34 @@ namespace SharpOTP.Remote
             where TRequest : Thrift.Protocol.TBase, new()
             where TResult : Thrift.Protocol.TBase, new()
         {
+            return this.CallTo<TRequest, TResult>(toNode, methodName, request, this.RemoteTimeout);
+        }
+        /// <summary>
+        /// call to
+        /// </summary>
+        /// <typeparam name="TRequest"></typeparam>
+        /// <typeparam name="TResult"></typeparam>
+        /// <param name="toNode"></param>
+        /// <param name="methodName"></param>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        public Task<TResult> CallTo<TRequest, TResult>(string toNode, string methodName, TRequest request, int millisecondsTimeout)
+            where TRequest : Thrift.Protocol.TBase, new()
+            where TResult : Thrift.Protocol.TBase, new()
+        {
             if (toNode == null) throw new ArgumentNullException("toNode");
             if (methodName == null) throw new ArgumentNullException("methodName");
 
             //本地节点，直接本地调用
             if (this.CurrNode == toNode)
-                return this._processor.Call<TRequest, TResult>(methodName, request, this.RemoteTimeout);
+                return this._processor.Call<TRequest, TResult>(methodName, request, millisecondsTimeout);
 
             //远程调用
             var source = new TaskCompletionSource<TResult>();
             var id = Interlocked.Increment(ref this.CORRENTIONID);
 
             //注册消息回复回调
-            var ctx = this._tbReply.Register<TResult>(toNode, id, this.RemoteTimeout,
+            var ctx = this._tbReply.Register<TResult>(toNode, id, millisecondsTimeout,
                 ex => source.TrySetException(ex),
                 result => source.TrySetResult(result));
 
@@ -369,9 +452,9 @@ namespace SharpOTP.Remote
                 ReplyTo = this.CurrNode,
                 CorrentionId = id,
                 Payload = Thrift.Util.ThriftMarshaller.Serialize(request),
-                MillisecondsTimeout = this.RemoteTimeout,
+                MillisecondsTimeout = millisecondsTimeout,
                 CreatedTick = DateTimeSlim.UtcNow.Ticks,
-            }, this.RemoteTimeout).ContinueWith(t =>
+            }, millisecondsTimeout).ContinueWith(t =>
             {
                 if (t.IsFaulted)
                 {
@@ -384,6 +467,7 @@ namespace SharpOTP.Remote
 
             return source.Task;
         }
+
         /// <summary>
         /// batch call
         /// </summary>
@@ -394,6 +478,22 @@ namespace SharpOTP.Remote
         /// <param name="arrRequest"></param>
         /// <returns></returns>
         public Task<TResult[]> Call<TRequest, TResult>(string methodName, Func<TRequest, string> keyFactory, TRequest[] arrRequest)
+            where TRequest : Thrift.Protocol.TBase, new()
+            where TResult : Thrift.Protocol.TBase, new()
+        {
+            return this.Call<TRequest, TResult>(methodName, keyFactory, arrRequest, this.RemoteTimeout);
+        }
+        /// <summary>
+        /// batch call
+        /// </summary>
+        /// <typeparam name="TRequest"></typeparam>
+        /// <typeparam name="TResult"></typeparam>
+        /// <param name="methodName"></param>
+        /// <param name="keyFactory"></param>
+        /// <param name="arrRequest"></param>
+        /// <param name="millisecondsTimeout"></param>
+        /// <returns></returns>
+        public Task<TResult[]> Call<TRequest, TResult>(string methodName, Func<TRequest, string> keyFactory, TRequest[] arrRequest, int millisecondsTimeout)
             where TRequest : Thrift.Protocol.TBase, new()
             where TResult : Thrift.Protocol.TBase, new()
         {
@@ -423,7 +523,7 @@ namespace SharpOTP.Remote
                 if (c.Key == this.CurrNode)
                 {
                     return this._processor.Call<TRequest, TResult>(methodName,
-                        childRequests.Select(p => p.Item2).ToArray(), this.RemoteTimeout).ContinueWith(t =>
+                        childRequests.Select(p => p.Item2).ToArray(), millisecondsTimeout).ContinueWith(t =>
                         {
                             if (t.IsFaulted) throw t.Exception.InnerException;
 
@@ -440,7 +540,7 @@ namespace SharpOTP.Remote
                 var id = Interlocked.Increment(ref this.CORRENTIONID);
 
                 //注册消息回复回调
-                var ctx = this._tbReply.Register<TResult>(c.Key, id, this.RemoteTimeout,
+                var ctx = this._tbReply.Register<TResult>(c.Key, id, millisecondsTimeout,
                     ex => source.TrySetException(ex),
                     (TResult[] arrResult) =>
                     {
@@ -459,9 +559,9 @@ namespace SharpOTP.Remote
                     ReplyTo = this.CurrNode,
                     CorrentionId = id,
                     ListPayload = childRequests.Select(p => Thrift.Util.ThriftMarshaller.Serialize(p.Item2)).ToList(),
-                    MillisecondsTimeout = this.RemoteTimeout,
+                    MillisecondsTimeout = millisecondsTimeout,
                     CreatedTick = DateTimeSlim.UtcNow.Ticks,
-                }, this.RemoteTimeout).ContinueWith(t =>
+                }, millisecondsTimeout).ContinueWith(t =>
                 {
                     if (t.IsFaulted)
                     {
