@@ -405,6 +405,22 @@ namespace SharpOTP.Remote
         /// </summary>
         /// <typeparam name="TRequest"></typeparam>
         /// <typeparam name="TResult"></typeparam>
+        /// <param name="key"></param>
+        /// <param name="methodName"></param>
+        /// <param name="request"></param>
+        /// <param name="millisecondsTimeout"></param>
+        /// <returns></returns>
+        public Task<TResult> Call<TRequest, TResult>(string key, string methodName, TRequest request, int millisecondsTimeout)
+            where TRequest : Thrift.Protocol.TBase, new()
+            where TResult : Thrift.Protocol.TBase, new()
+        {
+            return this.CallTo<TRequest, TResult>(this._dispatchPolicy.GetNode(key), methodName, request, millisecondsTimeout);
+        }
+        /// <summary>
+        /// call
+        /// </summary>
+        /// <typeparam name="TRequest"></typeparam>
+        /// <typeparam name="TResult"></typeparam>
         /// <param name="toNode"></param>
         /// <param name="methodName"></param>
         /// <param name="request"></param>
