@@ -21,4 +21,11 @@ namespace SharpOTP
     public sealed class CleanMessage
     {
     }
+
+    /// <summary>
+    /// ping message
+    /// </summary>
+    public sealed class PingMessage
+    {
+    }
 }
